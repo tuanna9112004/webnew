@@ -3,7 +3,7 @@ require_once __DIR__ . '/../includes/functions.php';
 admin_require_login();
 
 // =========================================================================
-// XỬ LÝ AJAX TÌM KIẾM SẢN PHẨM TRONG POPUP TẠO ĐƠN
+// 1. XỬ LÝ AJAX TÌM KIẾM SẢN PHẨM (TRONG POPUP TẠO ĐƠN)
 // =========================================================================
 if (isset($_GET['ajax_search_product'])) {
     header('Content-Type: application/json');
@@ -51,20 +51,20 @@ $paymentStatus = trim((string)($_GET['payment_status'] ?? ''));
 $q = trim((string)($_GET['q'] ?? ''));
 
 // =========================================================================
-// XỬ LÝ FORM TẠO ĐƠN THỦ CÔNG (TỪ POPUP)
+// 2. XỬ LÝ FORM LƯU ĐƠN HÀNG THỦ CÔNG
 // =========================================================================
 if (is_post() && ($_POST['action'] ?? '') === 'create_order') {
     verify_csrf_or_fail();
     try {
-        // Dữ liệu sản phẩm khách chọn đã được mã hóa JSON truyền qua hidden input
+        // Mảng chứa các sản phẩm khách chọn
         $orderItemsData = json_decode($_POST['order_items_json'] ?? '[]', true);
         
         if (empty($orderItemsData)) {
             throw new Exception("Vui lòng chọn ít nhất 1 sản phẩm để lên đơn!");
         }
 
-        // Logic: Gọi hàm lưu database của bạn ở đây. Dưới đây chỉ là ví dụ để bạn hình dung
-        // admin_create_manual_order($_POST['customer_name'], $_POST['contact_phone'], $_POST['address'], $_POST['total_amount'], $_POST['payment_status'], $_POST['order_status'], $orderItemsData);
+        // === VIẾT LOGIC INSERT VÀO DATABASE TẠI ĐÂY ===
+        // Ví dụ: admin_create_manual_order($_POST, $orderItemsData);
         
         $_SESSION['success_msg'] = "Đã lên đơn hàng thủ công thành công!";
         header('Location: ' . route_url('/admin/orders.php'));
@@ -78,7 +78,7 @@ if (is_post() && ($_POST['action'] ?? '') === 'create_order') {
 $orders = $missing ? [] : admin_get_orders(['status' => $status, 'payment_status' => $paymentStatus, 'q' => $q]);
 
 // =========================================================================
-// THUẬT TOÁN SẮP XẾP ƯU TIÊN THÔNG MINH (SMART SORTING)
+// 3. THUẬT TOÁN SẮP XẾP ƯU TIÊN THÔNG MINH (SMART SORTING)
 // =========================================================================
 if (!$missing && !empty($orders)) {
     usort($orders, function($a, $b) {
@@ -135,6 +135,7 @@ $paymentMap = payment_status_options();
             --admin-danger-bg: #fef2f2;
             --admin-danger-border: #fecaca;
             --admin-success: #10b981;
+            --admin-success-hover: #059669;
             --admin-success-bg: #ecfdf5;
             --admin-warning: #f59e0b;
             --admin-warning-bg: #fffbeb;
@@ -168,7 +169,7 @@ $paymentMap = payment_status_options();
         .admin-header-title p { color: var(--admin-text-muted); font-size: 14px; margin: 0; }
 
         .btn-primary-action { background-color: var(--admin-success); color: #fff; padding: 10px 20px; font-size: 14px; font-weight: 600; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s ease; box-shadow: var(--admin-shadow-sm); border: none; cursor: pointer; }
-        .btn-primary-action:hover { background-color: #059669; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); }
+        .btn-primary-action:hover { background-color: var(--admin-success-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); }
 
         .color-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; background: #f9fafb; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--admin-border); }
         .legend-item { display: flex; align-items: center; font-size: 13px; color: var(--admin-text-main); font-weight: 500; }
@@ -180,19 +181,21 @@ $paymentMap = payment_status_options();
         .filter-group label { font-size: 13px; font-weight: 600; color: var(--admin-text-main); }
         .filter-control { padding: 10px 14px; border: 1px solid var(--admin-border); border-radius: 8px; font-size: 14px; background: #fff; outline: none; transition: all 0.2s ease; font-family: 'Inter', sans-serif; width: 100%; box-sizing: border-box; }
         .filter-control:focus { border-color: var(--admin-primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
-        .filter-actions { display: flex; gap: 12px; }
+        .filter-actions { display: flex; gap: 12px; flex: 1; min-width: 180px; }
         .btn { padding: 10px 20px; height: 42px; font-size: 14px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; box-sizing: border-box; }
         .btn-search { background: var(--admin-text-main); color: #fff; }
         .btn-search:hover { background: #374151; }
         .btn-reset { background: #e5e7eb; color: var(--admin-text-main); }
         .btn-reset:hover { background: #d1d5db; }
 
+        /* BẢNG DỮ LIỆU ĐƠN HÀNG */
         .table-responsive { width: 100%; overflow-x: auto; border-radius: 10px; border: 1px solid var(--admin-border); background: #fff; }
         .admin-table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; min-width: 1000px; }
         .admin-table th { background-color: #f9fafb; color: var(--admin-text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; padding: 16px 14px; border-bottom: 1px solid var(--admin-border); white-space: nowrap; }
         .admin-table td { padding: 16px 14px; vertical-align: middle; border-bottom: 1px solid var(--admin-border); font-size: 14px; transition: background-color 0.2s; }
         .admin-table tr:last-child td { border-bottom: none; }
 
+        /* SMART ROWS */
         .admin-table tr { transition: opacity 0.3s, filter 0.3s; }
         .row-completed { opacity: 0.55; background-color: #f9fafb; filter: grayscale(30%); }
         .row-completed:hover { opacity: 1; filter: grayscale(0%); background-color: #fff; }
@@ -219,45 +222,46 @@ $paymentMap = payment_status_options();
         .date-text { font-family: monospace; font-size: 13px; color: var(--admin-text-muted); }
 
         /* ==========================================
-           FORM GRID (Đồng bộ)
+           FORM TẠO ĐƠN & POPUP (ĐỒNG BỘ UI)
            ========================================== */
         .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
-        .form-group { margin-bottom: 16px; }
-        .form-label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--admin-text-main); }
 
-        /* ==========================================
-           MODAL (POPUP TẠO ĐƠN CHUẨN)
-           ========================================== */
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(17, 24, 39, 0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px); opacity: 0; transition: opacity 0.2s ease; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(17, 24, 39, 0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px); opacity: 0; transition: opacity 0.25s ease; }
         .modal-overlay.active { display: flex; opacity: 1; }
         .modal-container { background: #fff; width: 100%; max-width: 800px; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); overflow: hidden; transform: scale(0.95); transition: transform 0.2s ease; max-height: 90vh; display: flex; flex-direction: column; }
         .modal-overlay.active .modal-container { transform: scale(1); }
         
         .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--admin-border); display: flex; justify-content: space-between; align-items: center; background: #f9fafb; }
         .modal-header h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--admin-text-main); display: flex; align-items: center; gap: 8px; }
-        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--admin-text-muted); line-height: 1; padding: 0; transition: color 0.2s; }
-        .modal-close:hover { color: var(--admin-danger); }
+        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--admin-text-muted); line-height: 1; padding: 4px; border-radius: 6px; transition: all 0.2s; }
+        .modal-close:hover { color: var(--admin-danger); background: var(--admin-danger-bg); }
         
         .modal-body { padding: 24px; overflow-y: auto; }
+        .modal-body::-webkit-scrollbar { width: 6px; }
+        .modal-body::-webkit-scrollbar-track { background: #f1f1f1; }
+        .modal-body::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+
         .modal-section-title { font-size: 14px; font-weight: 700; color: var(--admin-primary); margin: 0 0 16px 0; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #eef2ff; padding-bottom: 8px; display: flex; align-items: center; gap: 8px;}
-        
         .modal-footer { padding: 16px 24px; border-top: 1px solid var(--admin-border); background: #f9fafb; display: flex; justify-content: flex-end; gap: 12px; }
 
-        /* SEARCH DROPDOWN UI */
-        .search-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--admin-border); border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 1000; max-height: 250px; overflow-y: auto; display: none; }
-        .search-item { padding: 10px 14px; border-bottom: 1px solid var(--admin-border); cursor: pointer; display: flex; align-items: center; gap: 12px; }
+        /* TÌM KIẾM SẢN PHẨM DROPDOWN */
+        .search-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--admin-border); border-radius: 8px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); z-index: 1000; max-height: 250px; overflow-y: auto; display: none; margin-top: 4px; }
+        .search-dropdown::-webkit-scrollbar { width: 6px; }
+        .search-dropdown::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+        .search-item { padding: 10px 14px; border-bottom: 1px solid #f3f4f6; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: background-color 0.15s; }
         .search-item:last-child { border-bottom: none; }
-        .search-item:hover { background: #f9fafb; }
-        .search-item img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; border: 1px solid #e5e7eb; }
-        .search-item-name { font-size: 14px; font-weight: 600; color: var(--admin-text-main); margin-bottom: 2px;}
+        .search-item:hover { background: #f3f4f6; }
+        .search-item img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid #e5e7eb; }
+        .search-item-name { font-size: 14px; font-weight: 600; color: var(--admin-text-main); margin-bottom: 4px; line-height: 1.3;}
         .search-item-price { font-size: 13px; color: var(--admin-danger); font-weight: 600;}
 
-        /* Bảng giỏ hàng mini */
-        .mini-cart-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; border: 1px solid var(--admin-border); border-radius: 8px; overflow: hidden; }
-        .mini-cart-table th { background: #f9fafb; font-size: 12px; text-transform: uppercase; font-weight: 600; color: var(--admin-text-muted); padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--admin-border); }
-        .mini-cart-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--admin-border); vertical-align: middle; }
+        /* GIỎ HÀNG MINI */
+        .mini-cart-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; border: 1px solid var(--admin-border); border-radius: 8px; overflow: hidden; background: #fff;}
+        .mini-cart-table th { background: #f9fafb; font-size: 12px; text-transform: uppercase; font-weight: 600; color: var(--admin-text-muted); padding: 12px; text-align: left; border-bottom: 1px solid var(--admin-border); }
+        .mini-cart-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
         .mini-cart-table tr:last-child td { border-bottom: none; }
-        .qty-input { width: 60px; padding: 6px; border: 1px solid #d1d5db; border-radius: 6px; text-align: center; font-size: 13px; }
+        .qty-input { width: 60px; padding: 6px; border: 1px solid #d1d5db; border-radius: 6px; text-align: center; font-size: 13px; font-weight: 600; color: #111827;}
+        .qty-input:focus { border-color: var(--admin-primary); outline: none;}
 
         .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.7); z-index: 10000; align-items: center; justify-content: center; }
         .loading-overlay.active { display: flex; }
@@ -276,6 +280,7 @@ $paymentMap = payment_status_options();
             .filter-actions, .filter-actions .btn { width: 100%; }
             .form-grid { grid-template-columns: 1fr; gap: 0; }
             .modal-container { height: 100vh; max-height: 100vh; border-radius: 0; }
+            .mini-cart-table th:nth-child(3), .mini-cart-table td:nth-child(3) { display: none; }
         }
     </style>
 </head>
@@ -346,23 +351,23 @@ $paymentMap = payment_status_options();
             <?php else: ?>
                 <div class="admin-filters">
                     <form class="filter-form" method="get" id="filterForm">
-                        <div class="filter-group" style="flex: 2; min-width: 250px;">
+                        <div class="filter-group search-box">
                             <label>Tìm kiếm đơn hàng</label>
-                            <input type="text" name="q" id="searchInput" class="filter-control" value="<?= e($q) ?>" placeholder="Nhập Mã đơn / Tên / SĐT...">
+                            <input type="text" name="q" id="searchInput" class="filter-control" value="<?= e($q) ?>" placeholder="Nhập Mã đơn / Tên khách / Số điện thoại...">
                         </div>
-                        <div class="filter-group" style="flex: 1; min-width: 180px;">
+                        <div class="filter-group select-box">
                             <label>Trạng thái đơn hàng</label>
                             <select name="status" class="filter-control auto-submit">
-                                <option value="">-- Tất cả --</option>
+                                <option value="">-- Tất cả trạng thái --</option>
                                 <?php foreach ($statusMap as $key => $val): ?>
                                     <option value="<?= e($key) ?>" <?= $status === $key ? 'selected' : '' ?>><?= e($val[0]) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="filter-group" style="flex: 1; min-width: 180px;">
-                            <label>Thanh toán</label>
+                        <div class="filter-group select-box">
+                            <label>Trạng thái thanh toán</label>
                             <select name="payment_status" class="filter-control auto-submit">
-                                <option value="">-- Tất cả --</option>
+                                <option value="">-- Tất cả thanh toán --</option>
                                 <?php foreach ($paymentMap as $key => $val): ?>
                                     <option value="<?= e($key) ?>" <?= $paymentStatus === $key ? 'selected' : '' ?>><?= e($val[0]) ?></option>
                                 <?php endforeach; ?>
@@ -381,6 +386,7 @@ $paymentMap = payment_status_options();
                             <tr>
                                 <th>Mã đơn</th>
                                 <th>Khách hàng</th>
+                                <th>Nguồn</th>
                                 <th>Tổng tiền</th>
                                 <th>Thanh toán</th>
                                 <th>Trạng thái</th>
@@ -391,9 +397,9 @@ $paymentMap = payment_status_options();
                         <tbody>
                         <?php if (empty($orders)): ?>
                             <tr>
-                                <td colspan="7" style="text-align: center; padding: 60px 20px; color: var(--admin-text-muted);">
+                                <td colspan="8" style="text-align: center; padding: 60px 20px; color: var(--admin-text-muted);">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; color: #9ca3af;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                                    <br>Không tìm thấy đơn hàng.
+                                    <br>Không tìm thấy đơn hàng nào.
                                 </td>
                             </tr>
                         <?php else: ?>
@@ -423,6 +429,7 @@ $paymentMap = payment_status_options();
                                         <span class="fw-600"><?= e($order['customer_name'] ?: $order['contact_name']) ?></span>
                                         <span class="muted-text">SĐT: <?= e($order['contact_phone']) ?></span>
                                     </td>
+                                    <td><span class="channel-pill"><?= e($order['purchase_channel']) ?></span></td>
                                     <td><strong style="color: var(--admin-danger);"><?= format_price($order['total_amount']) ?></strong></td>
                                     <td><span class="status-badge badge-<?= $pStatus[1] ?>"><?= e($pStatus[0]) ?></span></td>
                                     <td><span class="status-badge badge-<?= $oStatus[1] ?>"><?= e($oStatus[0]) ?></span></td>
@@ -462,7 +469,7 @@ $paymentMap = payment_status_options();
                 <div class="form-grid">
                     <div class="form-group">
                         <label class="form-label">Tên khách hàng <span style="color:var(--admin-danger);">*</span></label>
-                        <input type="text" name="customer_name" class="form-control" required placeholder="VD: Anh Tùng">
+                        <input type="text" name="customer_name" class="form-control" required placeholder="VD: Nguyễn Văn A">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Số điện thoại <span style="color:var(--admin-danger);">*</span></label>
@@ -509,7 +516,7 @@ $paymentMap = payment_status_options();
                     <div class="form-group">
                         <label class="form-label">Trạng thái thanh toán</label>
                         <select name="payment_status" class="form-control">
-                            <option value="chua_thanh_toan">Chưa thanh toán (COD)</option>
+                            <option value="chua_thanh_toan">Chưa thanh toán</option>
                             <option value="da_dat_coc">Khách đã đặt cọc</option>
                             <option value="da_thanh_toan">Khách đã CK đủ</option>
                         </select>
@@ -534,7 +541,9 @@ $paymentMap = payment_status_options();
 </div>
 
 <script>
+// ==========================================
 // 1. Quản lý Auto-Submit Bộ lọc
+// ==========================================
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('filterForm');
     const autoSubmitSelects = document.querySelectorAll('.auto-submit');
@@ -549,7 +558,9 @@ function showLoading() {
     document.getElementById('loadingOverlay').classList.add('active');
 }
 
-// 2. Quản lý Modal
+// ==========================================
+// 2. Quản lý Modal Tạo Đơn
+// ==========================================
 const modal = document.getElementById('createOrderModal');
 function openOrderModal() {
     modal.classList.add('active');
@@ -563,7 +574,9 @@ modal.addEventListener('click', function(e) {
     if (e.target === modal) closeOrderModal();
 });
 
+// ==========================================
 // 3. Quản lý Tìm kiếm & Giỏ hàng AJAX
+// ==========================================
 let selectedItems = [];
 const searchInput = document.getElementById('searchProductInput');
 const searchDropdown = document.getElementById('searchDropdown');
@@ -573,7 +586,7 @@ const jsonInput = document.getElementById('orderItemsJson');
 
 let searchTimeout;
 
-// 3.1 Gõ tìm kiếm
+// 3.1 Lắng nghe gõ phím tìm kiếm
 searchInput.addEventListener('input', function() {
     clearTimeout(searchTimeout);
     const q = this.value.trim();
@@ -621,7 +634,7 @@ function addItemToCart(item) {
     searchDropdown.style.display = 'none';
     searchInput.value = '';
     
-    // Kiểm tra xem đã có trong giỏ chưa (cùng product_id và variant_id)
+    // Kiểm tra xem đã có trong giỏ chưa
     const existingIndex = selectedItems.findIndex(i => i.variant_id === item.variant_id && i.product_id === item.product_id);
     if (existingIndex > -1) {
         selectedItems[existingIndex].qty += 1;
@@ -645,7 +658,7 @@ window.removeItemFromCart = function(index) {
     renderCart();
 };
 
-// 3.5 Render lại bảng giỏ hàng & Tính tiền
+// 3.5 Render lại bảng giỏ hàng & Tự động Tính tổng tiền
 function renderCart() {
     if (selectedItems.length === 0) {
         tbody.innerHTML = '<tr id="emptyProductRow"><td colspan="5" style="text-align:center; color:var(--admin-text-muted); padding: 24px;">Giỏ hàng trống. Hãy tìm và chọn sản phẩm ở ô trên.</td></tr>';
@@ -674,8 +687,8 @@ function renderCart() {
                 <td style="text-align:right; font-size:13px; color:var(--admin-text-muted);">${new Intl.NumberFormat('vi-VN').format(item.price)}</td>
                 <td style="text-align:right; font-weight:600; color:var(--admin-danger);">${new Intl.NumberFormat('vi-VN').format(lineTotal)}</td>
                 <td style="text-align:center;">
-                    <button type="button" onclick="removeItemFromCart(${index})" style="background:none; border:none; color:var(--admin-danger); cursor:pointer; padding:4px;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    <button type="button" class="btn-remove-item" onclick="removeItemFromCart(${index})">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     </button>
                 </td>
             </tr>
@@ -683,11 +696,11 @@ function renderCart() {
     });
     
     tbody.innerHTML = html;
-    totalInput.value = grandTotal; // Tự động điền số tiền tổng
-    jsonInput.value = JSON.stringify(selectedItems); // Cập nhật input ẩn để đẩy lên Server
+    totalInput.value = grandTotal; // Điền tự động số tiền
+    jsonInput.value = JSON.stringify(selectedItems); // Data gửi lên backend
 }
 
-// 4. Validate trước khi submit
+// 4. Bắt buộc kiểm tra giỏ hàng trước khi tạo đơn
 function validateAndSubmit() {
     if (selectedItems.length === 0) {
         alert("Vui lòng tìm và chọn ít nhất 1 sản phẩm trước khi lưu đơn!");

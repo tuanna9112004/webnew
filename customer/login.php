@@ -11,23 +11,27 @@ $error = '';
 $redirectTarget = (string)($_GET['redirect'] ?? '/customer/account.php');
 
 if (is_post()) {
-    verify_csrf_or_fail();
-    $login = trim((string)($_POST['login'] ?? ''));
-    $password = (string)($_POST['password'] ?? '');
-    $customer = customer_find_by_login($login);
+    if (!csrf_is_valid(true)) {
+        refresh_csrf_token();
+        $error = 'Phiên đăng nhập đã được làm mới. Vui lòng bấm đăng nhập lại một lần nữa.';
+    } else {
+        $login = trim((string)($_POST['login'] ?? ''));
+        $password = (string)($_POST['password'] ?? '');
+        $customer = customer_find_by_login($login);
 
-    if ($customer && !empty($customer['password_hash']) && password_verify($password, $customer['password_hash'])) {
-        customer_login($customer);
-        flash_set('customer_auth', 'Đăng nhập thành công.', 'success');
-        $target = trim((string)($_POST['redirect'] ?? $redirectTarget));
-        if ($target === '' || !str_starts_with($target, '/')) {
-            $target = '/customer/account.php';
+        if ($customer && !empty($customer['password_hash']) && password_verify($password, $customer['password_hash'])) {
+            customer_login($customer);
+            flash_set('customer_auth', 'Đăng nhập thành công.', 'success');
+            $target = trim((string)($_POST['redirect'] ?? $redirectTarget));
+            if ($target === '' || !str_starts_with($target, '/')) {
+                $target = '/customer/account.php';
+            }
+            redirect($target);
         }
-        redirect($target);
-    }
 
-    customer_log_security_event($customer['id'] ?? null, 'login_failed', 'Đăng nhập thất bại với: ' . $login);
-    $error = 'Sai thông tin đăng nhập hoặc tài khoản chưa tồn tại.';
+        customer_log_security_event($customer['id'] ?? null, 'login_failed', 'Đăng nhập thất bại với: ' . $login);
+        $error = 'Sai thông tin đăng nhập hoặc tài khoản chưa tồn tại.';
+    }
 }
 
 $flash = flash_get('customer_auth');

@@ -59,6 +59,44 @@ require_once __DIR__ . '/includes/header.php';
 ?>
 
 <style>
+/* CSS cho phần chọn phương thức thanh toán to hơn */
+.payment-options-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 10px;
+}
+.payment-option-label {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 20px;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    background: #fff;
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.payment-option-label input[type="radio"] {
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: #0f172a; /* Đổi màu xanh đen cho nút tick, có thể thay đổi */
+}
+.payment-option-label:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+/* Hiệu ứng khi được chọn (hoạt động tốt trên trình duyệt hiện đại) */
+.payment-option-label:has(input:checked) {
+    border-color: #0f172a;
+    background: #f8fafc;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
 /* Tối ưu giao diện Mobile cho trang thanh toán */
 @media (max-width: 768px) {
     .grid-2 {
@@ -197,15 +235,21 @@ require_once __DIR__ . '/includes/header.php';
                     <textarea class="form-textarea" name="customer_note" placeholder="Ví dụ: Giao giờ hành chính, gọi trước khi giao...\n"><?= e(old_input('customer_note')) ?></textarea>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Chọn cách thanh toán trên web</label>
-                    <div class="inline-radio">
-                        <label><input type="radio" name="payment_plan" value="deposit_30" <?= old_input('payment_plan', 'deposit_30') === 'deposit_30' ? 'checked' : '' ?>> Cọc <?= (int)shop_deposit_rate() ?>%</label>
-                        <label><input type="radio" name="payment_plan" value="full" <?= old_input('payment_plan') === 'full' ? 'checked' : '' ?>> Thanh toán toàn bộ</label>
+                <div class="form-group mt-24">
+                    <label class="form-label" style="font-size: 18px; font-weight: 700; color: #111827;">Chọn cách thanh toán trên web</label>
+                    <div class="payment-options-container">
+                        <label class="payment-option-label">
+                            <input type="radio" name="payment_plan" value="deposit_30" <?= old_input('payment_plan', 'deposit_30') === 'deposit_30' ? 'checked' : '' ?>> 
+                            <span>Cọc <?= (int)shop_deposit_rate() ?>%</span>
+                        </label>
+                        <label class="payment-option-label">
+                            <input type="radio" name="payment_plan" value="full" <?= old_input('payment_plan') === 'full' ? 'checked' : '' ?>> 
+                            <span>Thanh toán toàn bộ</span>
+                        </label>
                     </div>
                 </div>
 
-                <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:20px;">
+                <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:24px;">
                     <button class="btn-primary" type="submit">Tạo đơn & chờ thanh toán</button>
                     <a class="btn-secondary" target="_blank" rel="noopener noreferrer" href="<?= e(shop_zalo_link()) ?>">Mua qua Zalo</a>
                 </div>

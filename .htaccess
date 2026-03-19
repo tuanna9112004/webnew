@@ -1,14 +1,22 @@
 RewriteEngine On
 
-# Trang chủ sạch URL
+# Nếu hosting/proxy có HTTPS thì giữ nguyên request HTTPS, không đá POST sang URL khác
+# Chỉ redirect URL .php sang URL sạch với GET/HEAD, KHÔNG redirect POST
+RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
 RewriteRule ^$ /trang-chu [R=301,L]
 
-# Điều hướng /index hoặc /index.php về /trang-chu
+RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
 RewriteCond %{THE_REQUEST} \s/+index(?:\.php)?(?:[?\s]|$) [NC]
 RewriteRule ^index(?:\.php)?$ /trang-chu [R=301,L]
 
-# Điều hướng file .php sang URL sạch
-RewriteCond %{REQUEST_URI} !^/(assets|img|uploads|vendor)/ [NC]
+# Không redirect webhook/API quan trọng
+RewriteRule ^webhooks/sepay\.php$ - [L]
+RewriteRule ^callback_atm\.php$ - [L]
+
+# Chỉ redirect .php sang URL sạch với GET/HEAD
+RewriteCond %{REQUEST_METHOD} ^(GET|HEAD)$ [NC]
+RewriteCond %{REQUEST_URI} !^/(assets|img|uploads|vendor|webhooks)/ [NC]
+RewriteCond %{REQUEST_URI} !^/callback_atm\.php$ [NC]
 RewriteCond %{THE_REQUEST} \s/+(.+?)\.php(?:[?\s]|$) [NC]
 RewriteRule ^(.+?)\.php$ /$1 [R=301,L]
 

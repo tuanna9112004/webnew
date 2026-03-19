@@ -10,13 +10,17 @@ $pageStylesheets = [BASE_URL . '/assets/shop-upgrade.css'];
 $error = '';
 
 if (is_post()) {
-    verify_csrf_or_fail();
-    $result = customer_register_local($_POST);
-    if ($result['ok']) {
-        flash_set('customer_auth', 'Đăng ký thành công. Chào mừng bạn đến với shop!', 'success');
-        redirect('/customer/account.php');
+    if (!csrf_is_valid(true)) {
+        refresh_csrf_token();
+        $error = 'Phiên đăng ký đã được làm mới. Vui lòng gửi lại biểu mẫu.';
+    } else {
+        $result = customer_register_local($_POST);
+        if ($result['ok']) {
+            flash_set('customer_auth', 'Đăng ký thành công. Chào mừng bạn đến với shop!', 'success');
+            redirect('/customer/account.php');
+        }
+        $error = $result['message'] ?? 'Không thể đăng ký.';
     }
-    $error = $result['message'] ?? 'Không thể đăng ký.';
 }
 
 require_once __DIR__ . '/../includes/header.php';

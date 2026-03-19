@@ -2,20 +2,25 @@
 require_once __DIR__ . '/../includes/functions.php';
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
+    if (!csrf_is_valid(true)) {
+        refresh_csrf_token();
+        $error = 'Phiên đăng nhập đã được làm mới. Vui lòng thử lại.';
+    } else {
+        $username = trim($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
 
-    $stmt = db()->prepare('SELECT * FROM admins WHERE username = ? LIMIT 1');
-    $stmt->execute([$username]);
-    $user = $stmt->fetch();
+        $stmt = db()->prepare('SELECT * FROM admins WHERE username = ? LIMIT 1');
+        $stmt->execute([$username]);
+        $user = $stmt->fetch();
 
-    if ($user && password_verify($password, $user['password_hash'])) {
-        session_regenerate_id(true);
-        $_SESSION['admin_id'] = $user['id'];
-        $_SESSION['admin_name'] = $user['full_name'];
-        redirect('/admin/products.php');
+        if ($user && password_verify($password, $user['password_hash'])) {
+            session_regenerate_id(true);
+            $_SESSION['admin_id'] = $user['id'];
+            $_SESSION['admin_name'] = $user['full_name'];
+            redirect('/admin/products.php');
+        }
+        $error = 'Sai tài khoản hoặc mật khẩu.';
     }
-    $error = 'Sai tài khoản hoặc mật khẩu.';
 }
 $pageTitle = 'Đăng nhập quản trị';
 require_once __DIR__ . '/../includes/header.php';
@@ -138,6 +143,7 @@ require_once __DIR__ . '/../includes/header.php';
         <?php endif; ?>
 
         <form method="post" action="">
+            <?= csrf_field() ?>
             <div class="form-group">
                 <label for="username">Tên tài khoản</label>
                 <input 

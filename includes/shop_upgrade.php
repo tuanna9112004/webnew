@@ -140,33 +140,12 @@ function sepay_account_name(): string
 
 function sepay_webhook_api_key(): string
 {
-    $value = trim((string)shop_setting('sepay_webhook_api_key', ''));
-    if ($value !== '') {
-        return $value;
-    }
-
-    if (defined('SEPAY_WEBHOOK_API_KEY')) {
-        return trim((string)SEPAY_WEBHOOK_API_KEY);
-    }
-
-    return '';
+    return trim((string)shop_setting('sepay_webhook_api_key', ''));
 }
 
 function sepay_expected_sub_account(): string
 {
-    $value = trim((string)shop_setting('sepay_expected_sub_account', ''));
-    if ($value !== '') {
-        return $value;
-    }
-
-    if (defined('SEPAY_EXPECTED_SUB_ACCOUNT')) {
-        $fallback = trim((string)SEPAY_EXPECTED_SUB_ACCOUNT);
-        if ($fallback !== '') {
-            return $fallback;
-        }
-    }
-
-    return sepay_bank_account_no();
+    return trim((string)shop_setting('sepay_expected_sub_account', sepay_bank_account_no()));
 }
 
 function sepay_qr_url(float $amount, string $transferNote): string
@@ -441,10 +420,16 @@ function old_input(string $key, $default = '')
 
 function csrf_token(): string
 {
-    if (empty($_SESSION['_csrf_token'])) {
+    if (empty($_SESSION['_csrf_token']) || !is_string($_SESSION['_csrf_token'])) {
         $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
     }
-    return $_SESSION['_csrf_token'];
+    return (string)$_SESSION['_csrf_token'];
+}
+
+function refresh_csrf_token(): string
+{
+    $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+    return (string)$_SESSION['_csrf_token'];
 }
 
 function csrf_field(): string
@@ -452,14 +437,40 @@ function csrf_field(): string
     return '<input type="hidden" name="csrf_token" value="' . e(csrf_token()) . '">';
 }
 
-function verify_csrf_or_fail(): void
+function csrf_is_valid(bool $allowBootstrapIfSessionMissing = false): bool
 {
-    $token = (string)($_POST['csrf_token'] ?? '');
-    $expected = (string)($_SESSION['_csrf_token'] ?? '');
-    if ($expected === '' || !hash_equals($expected, $token)) {
-        http_response_code(419);
-        exit('Phiên làm việc đã hết hạn hoặc token không hợp lệ. Vui lòng tải lại trang và thử lại.');
+    $token = trim((string)($_POST['csrf_token'] ?? ''));
+    $expected = trim((string)($_SESSION['_csrf_token'] ?? ''));
+
+    if ($token === '') {
+        return false;
     }
+
+    if ($expected !== '' && hash_equals($expected, $token)) {
+        return true;
+    }
+
+    if (
+        $allowBootstrapIfSessionMissing
+        && $expected === ''
+        && preg_match('/^[a-f0-9]{64}$/i', $token)
+    ) {
+        $_SESSION['_csrf_token'] = $token;
+        return true;
+    }
+
+    return false;
+}
+
+function verify_csrf_or_fail(bool $allowBootstrapIfSessionMissing = false): void
+{
+    if (csrf_is_valid($allowBootstrapIfSessionMissing)) {
+        return;
+    }
+
+    refresh_csrf_token();
+    http_response_code(419);
+    exit('Phiên làm việc đã hết hạn hoặc token không hợp lệ. Vui lòng tải lại trang và thử lại.');
 }
 
 function customer_session_bootstrap(): void
