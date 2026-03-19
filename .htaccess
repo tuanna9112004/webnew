@@ -1,0 +1,25 @@
+RewriteEngine On
+
+# Trang chủ sạch URL
+RewriteRule ^$ /trang-chu [R=301,L]
+
+# Điều hướng /index hoặc /index.php về /trang-chu
+RewriteCond %{THE_REQUEST} \s/+index(?:\.php)?(?:[?\s]|$) [NC]
+RewriteRule ^index(?:\.php)?$ /trang-chu [R=301,L]
+
+# Điều hướng file .php sang URL sạch
+RewriteCond %{REQUEST_URI} !^/(assets|img|uploads|vendor)/ [NC]
+RewriteCond %{THE_REQUEST} \s/+(.+?)\.php(?:[?\s]|$) [NC]
+RewriteRule ^(.+?)\.php$ /$1 [R=301,L]
+
+# Rewrite trang chủ đẹp về file thật
+RewriteRule ^trang-chu/?$ index.php [L,QSA]
+
+# Rewrite URL chi tiết sản phẩm đẹp
+RewriteRule ^([^/]+)/([^/]+)\.html$ product.php?category_slug=$1&slug=$2 [L,QSA]
+
+# Rewrite các URL không có .php sang file .php tương ứng nếu file tồn tại
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^(.+?)/?$ $1.php [L,QSA]
