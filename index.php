@@ -91,8 +91,47 @@ function render_product_cards(array $products): string
     return ob_get_clean();
 }
 
-$priceRange = trim($_GET['price_range'] ?? '');
+function render_pagination_html($page, $totalPages) {
+    if ($totalPages <= 1) return '';
+    ob_start();
+    ?>
+    <div class="pagination-lux">
+        <?php if ($page > 1): ?>
+            <button type="button" class="page-btn text-btn" data-page="<?= $page - 1 ?>" aria-label="Trang trước">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
+        <?php endif; ?>
+        
+        <?php 
+        $start = max(1, $page - 2);
+        $end = min($totalPages, $page + 2);
+        
+        if ($start > 1) { 
+            echo '<button type="button" class="page-btn" data-page="1">1</button>';
+            if ($start > 2) echo '<span class="page-dots">...</span>'; 
+        }
+        
+        for ($i = $start; $i <= $end; $i++): ?>
+            <button type="button" class="page-btn <?= $i === $page ? 'active' : '' ?>" data-page="<?= $i ?>"><?= $i ?></button>
+        <?php endfor; 
+        
+        if ($end < $totalPages) { 
+            if ($end < $totalPages - 1) echo '<span class="page-dots">...</span>';
+            echo '<button type="button" class="page-btn" data-page="' . $totalPages . '">' . $totalPages . '</button>';
+        }
+        ?>
+        
+        <?php if ($page < $totalPages): ?>
+            <button type="button" class="page-btn text-btn" data-page="<?= $page + 1 ?>" aria-label="Trang sau">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+        <?php endif; ?>
+    </div>
+    <?php
+    return ob_get_clean();
+}
 
+$priceRange = trim($_GET['price_range'] ?? '');
 $priceMin = null;
 $priceMax = null;
 
@@ -124,7 +163,20 @@ $filters = [
     'q'           => trim($_GET['q'] ?? ''),
 ];
 
-$products = get_products($filters);
+// Lấy toàn bộ sản phẩm theo filter
+$allProducts = get_products($filters);
+
+// XỬ LÝ PHÂN TRANG (10 SP / Trang)
+$limit = 10;
+$totalProducts = count($allProducts);
+$totalPages = ceil($totalProducts / $limit);
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+if ($page > $totalPages && $totalPages > 0) {
+    $page = $totalPages;
+}
+// Cắt mảng sản phẩm cho trang hiện tại
+$paginatedProducts = array_slice($allProducts, ($page - 1) * $limit, $limit);
+
 $categories = get_categories();
 $productTypes = get_product_types();
 
@@ -145,10 +197,10 @@ $productTypesForJs = array_map(function ($type) {
 
 if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     header('Content-Type: application/json; charset=utf-8');
-
     echo json_encode([
-        'count' => count($products),
-        'html'  => render_product_cards($products),
+        'count' => $totalProducts,
+        'html'  => render_product_cards($paginatedProducts),
+        'pagination' => render_pagination_html($page, $totalPages)
     ]);
     exit;
 }
@@ -379,6 +431,42 @@ body.popup-open {
     border-radius: 0 30px 30px 0;
 }
 
+/* =========================================================
+   LUXURY CATEGORY PILLS (FIX AUTO WRAP)
+   ========================================================= */
+.category-pills {
+    display: flex;
+    flex-wrap: wrap; /* Cho phép các nút rớt xuống dòng thay vì kéo ngang */
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 25px;
+}
+
+.category-pills .pill {
+    padding: 12px 24px;
+    border-radius: 30px;
+    background: #fff;
+    color: #444;
+    border: 1px solid #eaeaea;
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.category-pills .pill:hover, 
+.category-pills .pill.active {
+    background: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+}
+
 /* Ẩn Filter button Desktop */
 .mobile-filter-toggle {
     display: none;
@@ -450,7 +538,7 @@ body.popup-open {
     overflow: hidden;
     aspect-ratio: 4/5;
     display: block;
-    background: #f8f9fa; /* Màu nền nhẹ cho ảnh trong suốt */
+    background: #f8f9fa; 
 }
 
 .product-image-wrap img {
@@ -494,7 +582,6 @@ body.popup-open {
     letter-spacing: 0.5px;
 }
 
-/* CSS CHO NHÃN GIẢM GIÁ (SALE BADGE) NỔI BẬT */
 .discount-badge {
     position: absolute;
     top: 16px;
@@ -566,14 +653,13 @@ body.popup-open {
     color: var(--danger-color);
 }
 
-/* CSS CHO MÔ TẢ NGẮN (SHORT DESC) */
 .product-short-desc {
     font-size: 13.5px;
     color: var(--text-muted);
     line-height: 1.6;
     margin-bottom: 12px;
     display: -webkit-box;
-    -webkit-line-clamp: 2; /* Chỉ hiển thị 2 dòng */
+    -webkit-line-clamp: 2; 
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -595,19 +681,18 @@ body.popup-open {
     padding-top: 20px;
 }
 
-/* CSS CHO GIÁ BÁN NỔI BẬT */
 .price-stack {
     display: flex;
-    align-items: center; /* Đổi về center để giá gốc nằm cân đối với giá bán */
+    align-items: center; 
     gap: 10px;
     margin-bottom: 18px;
     flex-wrap: wrap;
 }
 
 .price {
-    font-size: 24px; /* Tăng kích thước giá bán */
+    font-size: 24px; 
     font-weight: 900;
-    color: var(--danger-color); /* Màu đỏ nổi bật */
+    color: var(--danger-color); 
     letter-spacing: -0.5px;
 }
 
@@ -644,7 +729,6 @@ body.popup-open {
     transform: translateY(-2px);
 }
 
-/* NÚT MUA NGAY (Thay thế Zalo) */
 .btn-buy-now {
     background: var(--primary-color);
     color: #ffffff;
@@ -656,6 +740,54 @@ body.popup-open {
     color: #ffffff;
     transform: translateY(-2px);
     box-shadow: 0 8px 20px rgba(229, 0, 63, 0.3);
+}
+
+/* =========================================================
+   LUXURY PAGINATION CSS
+   ========================================================= */
+.pagination-lux {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-top: 40px;
+    padding-bottom: 20px;
+}
+
+.pagination-lux .page-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 1px solid #eaeaea;
+    background: #fff;
+    color: #333;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+}
+
+.pagination-lux .page-btn:hover {
+    background: #f8f9fa;
+    border-color: #ddd;
+    transform: translateY(-2px);
+}
+
+.pagination-lux .page-btn.active {
+    background: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+}
+
+.pagination-lux .page-dots {
+    color: #999;
+    font-weight: 700;
+    padding: 0 4px;
 }
 
 /* =========================================================
@@ -714,6 +846,17 @@ body.popup-open {
         height: 32px;
         font-size: 20px;
         border: none;
+    }
+
+    /* Đảm bảo nút danh mục gọn gàng trên mobile */
+    .category-pills {
+        gap: 8px;
+        margin-bottom: 15px;
+    }
+    
+    .category-pills .pill {
+        padding: 10px 18px;
+        font-size: 13px;
     }
 
     /* Logic bật tắt Filter Mobile */
@@ -974,6 +1117,7 @@ $shopNameDynamic = function_exists('shop_name') ? shop_name() : 'Duong Mot Mi SH
 
     <form id="filterForm" class="filter-panel" method="get" action="<?= route_url('/index.php') ?>">
         <input type="hidden" name="category" id="categoryInput" value="<?= $filters['category_id'] ?? '' ?>">
+        <input type="hidden" name="page" id="pageInput" value="<?= $page ?>">
 
         <div class="filter-grid">
             <div class="filter-field filter-field-search">
@@ -1029,11 +1173,15 @@ $shopNameDynamic = function_exists('shop_name') ? shop_name() : 'Duong Mot Mi SH
 </section>
 
 <section class="section-head" id="product-list">
-    <div class="section-note" id="productCount"><?= count($products) ?> sản phẩm</div>
+    <div class="section-note" id="productCount"><?= count($allProducts) ?> sản phẩm</div>
 </section>
 
 <div class="product-grid-pro" id="productGrid">
-    <?= render_product_cards($products) ?>
+    <?= render_product_cards($paginatedProducts) ?>
+</div>
+
+<div id="paginationWrapper">
+    <?= render_pagination_html($page, $totalPages) ?>
 </div>
 
 <script>
@@ -1041,7 +1189,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const filterForm = document.getElementById('filterForm');
     const productGrid = document.getElementById('productGrid');
     const productCount = document.getElementById('productCount');
+    const paginationWrapper = document.getElementById('paginationWrapper');
     const categoryInput = document.getElementById('categoryInput');
+    const pageInput = document.getElementById('pageInput');
     const categoryFilters = document.querySelectorAll('.category-filter');
     const resetFilterBtn = document.getElementById('resetFilter');
     const searchInput = document.getElementById('q');
@@ -1159,6 +1309,10 @@ document.addEventListener('DOMContentLoaded', function () {
             requestAnimationFrame(() => {
                 productGrid.innerHTML = data.html;
                 productCount.textContent = `${data.count} sản phẩm`;
+                if (paginationWrapper && data.pagination !== undefined) {
+                    paginationWrapper.innerHTML = data.pagination;
+                }
+                
                 history.replaceState(null, '', browserUrl);
                 updateActiveCategory(categoryInput.value);
                 lastQuery = queryString;
@@ -1177,26 +1331,35 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // LOGIC MỚI: KHI ĐỔI DANH MỤC, RESET TẤT CẢ FILTER KHÁC
+    // XỬ LÝ CLICK PHÂN TRANG
+    document.addEventListener('click', function(e) {
+        const pageBtn = e.target.closest('.page-btn');
+        if (pageBtn) {
+            e.preventDefault();
+            const newPage = pageBtn.dataset.page;
+            if (newPage) {
+                pageInput.value = newPage;
+                loadProducts(true);
+                document.getElementById('product-list').scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    });
+
     categoryFilters.forEach(link => {
         link.addEventListener('click', function (e) {
             e.preventDefault();
             
-            // Lấy ID danh mục mới
             const newCategoryId = this.dataset.category || '';
             categoryInput.value = newCategoryId;
             
-            // XÓA TRỐNG TOÀN BỘ CÁC TRƯỜNG LỌC KHÁC
             if (searchInput) searchInput.value = '';
             if (genderSelect) genderSelect.value = '';
             if (priceRangeSelect) priceRangeSelect.value = '';
+            pageInput.value = 1; // Reset về trang 1
             
-            // Render lại options Loại theo danh mục mới và để trống (không chọn loại nào)
             renderTypeOptions(newCategoryId, '');
-            
             updateActiveCategory(newCategoryId);
             
-            // Load sản phẩm với force=true
             loadProducts(true);
             
             if (window.innerWidth <= 768) {
@@ -1207,6 +1370,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     filterForm.addEventListener('submit', function (e) {
         e.preventDefault();
+        pageInput.value = 1; // Reset trang 1 khi search
         loadProducts(true);
         if (window.innerWidth <= 768) {
              filterForm.classList.remove('show-on-mobile');
@@ -1216,6 +1380,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     filterForm.querySelectorAll('select').forEach(field => {
         field.addEventListener('change', function () {
+            pageInput.value = 1; // Reset trang 1
             loadProducts(true);
         });
     });
@@ -1224,6 +1389,7 @@ document.addEventListener('DOMContentLoaded', function () {
         searchInput.addEventListener('input', function () {
             clearTimeout(typingTimer);
             typingTimer = setTimeout(() => {
+                pageInput.value = 1; // Reset trang 1
                 loadProducts(true);
             }, 300);
         });
@@ -1231,6 +1397,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     resetFilterBtn.addEventListener('click', function () {
         categoryInput.value = '';
+        pageInput.value = 1;
         if (searchInput) searchInput.value = '';
         if (typeSelect) typeSelect.value = '';
         if (genderSelect) genderSelect.value = '';
@@ -1284,7 +1451,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Chỉ hiện tự động nếu PHP cờ $showPopup = true (đã được dọn dẹp để fix lỗi cú pháp PHP của bạn)
     <?php if ($showPopup): ?>
         const schedulePopup = () => {
             setTimeout(() => {

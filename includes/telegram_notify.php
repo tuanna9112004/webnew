@@ -153,7 +153,6 @@ function get_telegram_order_items_text(int $orderId): string
     $itemLines = [];
 
     try {
-        // Query trực tiếp vào bảng order_items theo đúng schema của bạn
         $stmt = db()->prepare('SELECT product_name_snapshot, variant_name_snapshot, quantity FROM order_items WHERE order_id = ?');
         $stmt->execute([$orderId]);
         $items = $stmt->fetchAll();
@@ -168,43 +167,38 @@ function get_telegram_order_items_text(int $orderId): string
                 $displayName .= ' (' . $variant . ')';
             }
             
-            $itemLines[] = '  - ' . telegram_escape_html($displayName) . ' (x' . $qty . ')';
+            // Thêm icon sản phẩm
+            $itemLines[] = '  🔸 ' . telegram_escape_html($displayName) . ' (x' . $qty . ')';
         }
     } catch (Throwable $e) {
         // Im lặng bỏ qua lỗi
     }
 
-    return empty($itemLines) ? '  - (Chưa rõ chi tiết)' : implode("\n", $itemLines);
+    return empty($itemLines) ? '  🔸 (Chưa rõ chi tiết)' : implode("\n", $itemLines);
 }
 
 function build_order_telegram_message(array $order, ?array $payment = null, string $itemsText = ''): string
 {
-    // Lấy thông tin cơ bản (ưu tiên customer_name, fallback contact_name)
     $orderCode = telegram_escape_html((string)($order['order_code'] ?? ''));
     $customerName = telegram_escape_html(trim((string)($order['customer_name'] ?? ($order['contact_name'] ?? 'Khách lẻ'))));
     $phone = telegram_escape_html(trim((string)($order['contact_phone'] ?? '')));
-    $totalAmount = format_price((float)($order['total_amount'] ?? 0));
     
-    // Nối Tên và SĐT
-    $customerInfo = $customerName;
-    if ($phone !== '') {
-        $customerInfo .= ' - ' . $phone;
-    }
-
-    // Logic lựa chọn thanh toán y hệt trong admin_order_view.php
+    $rawTotal = (float)($order['total_amount'] ?? 0);
+    $totalAmount = format_price($rawTotal);
+    
     $paymentPlan = 'Thanh toán toàn bộ';
+    $depositRequired = (float)($order['deposit_required_amount'] ?? 0);
+
     if (isset($order['payment_method']) && strpos(strtolower($order['payment_method']), 'deposit') !== false) {
         $paymentPlan = 'Thanh toán tiền cọc';
-    } elseif ((float)($order['deposit_required_amount'] ?? 0) > 0 && (float)$order['deposit_required_amount'] < (float)$order['total_amount']) {
+    } elseif ($depositRequired > 0 && $depositRequired < $rawTotal) {
         $paymentPlan = 'Thanh toán tiền cọc';
     } elseif (isset($order['payment_method']) && strpos(strtolower($order['payment_method']), 'cod') !== false) {
         $paymentPlan = 'COD';
     }
 
     $statusLabel = telegram_payment_status_label((string)($order['payment_status'] ?? ''));
-    $paymentInfo = "($paymentPlan - $statusLabel)";
     
-    // Thời gian thanh toán hoặc thời gian đặt hàng
     $paidAt = date('Y-m-d H:i:s');
     if ($payment && !empty($payment['created_at'])) {
         $paidAt = (string)$payment['created_at'];
@@ -214,13 +208,30 @@ function build_order_telegram_message(array $order, ?array $payment = null, stri
         $paidAt = (string)$order['created_at'];
     }
 
+    // Xây dựng nội dung tin nhắn có Icon và Format HTML đẹp mắt
     $lines = [
-        '📦 <b>ĐƠN HÀNG MỚI: ' . $orderCode . '</b>',
-        '• <b>Khách:</b> ' . $customerInfo,
-        '• <b>Giá trị:</b> ' . telegram_escape_html($totalAmount) . ' ' . telegram_escape_html($paymentInfo),
-        '• <b>Sản phẩm:</b>' . "\n" . $itemsText,
-        '• <b>Thời gian:</b> ' . telegram_escape_html($paidAt),
+        '📦 <b>ĐƠN HÀNG MỚI: <code>#' . $orderCode . '</code></b>',
+        '',
+        '👤 <b>Khách hàng:</b> <code>' . $customerName . '</code>' . ($phone !== '' ? ' | 📞 <code>' . $phone . '</code>' : ''),
+        '💳 <b>Trạng thái:</b> ' . $paymentPlan . ' - <b>' . $statusLabel . '</b>',
+        '---',
+        '💰 <b>Tổng giá trị:</b> ' . $totalAmount,
     ];
+
+    // Xử lý hiển thị thông tin cọc rõ ràng
+    if ($paymentPlan === 'Thanh toán tiền cọc' && $depositRequired > 0) {
+        $lines[] = '✅ <b>Đã cọc/Cần cọc:</b> ' . format_price($depositRequired);
+        $remaining = $rawTotal - $depositRequired;
+        if ($remaining > 0) {
+            $lines[] = '⚠️ <b>Còn lại (Thu COD):</b> ' . format_price($remaining);
+        }
+    }
+
+    $lines[] = '---';
+    $lines[] = '🛒 <b>Danh sách sản phẩm:</b>';
+    $lines[] = $itemsText;
+    $lines[] = '---';
+    $lines[] = '🕒 <b>Thời gian:</b> ' . telegram_escape_html($paidAt);
 
     return implode("\n", $lines);
 }
