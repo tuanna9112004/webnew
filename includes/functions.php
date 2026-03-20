@@ -843,3 +843,4 @@ function admin_require_login(): void {
 }
 
 require_once __DIR__ . '/shop_upgrade.php';
+require_once __DIR__ . '/telegram_notify.php';

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th3 20, 2026 lúc 08:25 AM
+-- Thời gian đã tạo: Th3 20, 2026 lúc 03:30 PM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -101,10 +101,10 @@ INSERT INTO `app_settings` (`setting_key`, `setting_value`, `updated_at`) VALUES
 ('shop_phone', '0961.691.107', '2026-03-19 13:41:49'),
 ('shop_tagline', 'Khám phá phong cách thời trang trẻ trung, hiện đại. Chúng tôi cam kết mang đến cho bạn những sản phẩm chất lượng với dịch vụ chốt đơn nhanh chóng, tận tâm.', '2026-03-19 13:41:49'),
 ('shop_working_hours', '08:00 - 22:00 (T2 - CN)', '2026-03-19 13:41:49'),
-('telegram_bot_token', '', '2026-03-20 14:25:29'),
-('telegram_bot_username', '', '2026-03-20 14:25:29'),
-('telegram_chat_id', '', '2026-03-20 14:25:29'),
-('telegram_notify_enabled', '0', '2026-03-20 14:25:29'),
+('telegram_bot_token', '8676269115:AAGCfwgTUcZUwry6jdh5hpHEptX5Tnhapi8', '2026-03-20 15:29:16'),
+('telegram_bot_username', 'DuongMotMIshop_notify_bot', '2026-03-20 15:29:18'),
+('telegram_chat_id', '-5274178899', '2026-03-20 15:29:28'),
+('telegram_notify_enabled', '1', '2026-03-20 15:29:30'),
 ('tiktok_link', '', '2026-03-19 13:41:49'),
 ('zalo_contact_link', 'https://zalo.me/0961691107', '2026-03-19 13:41:49'),
 ('zalo_group_link', 'https://zalo.me/g/bjazlwfwqlsmruqdnxqr', '2026-03-19 13:41:49');
