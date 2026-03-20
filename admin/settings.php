@@ -14,6 +14,7 @@ $sections = [
     'general' => 'Thông tin chung',
     'contact' => 'Liên hệ & mạng xã hội',
     'payment' => 'Thanh toán / SePay',
+    'notifications' => 'Thông báo Telegram',
     'features' => 'Tính năng hệ thống',
 ];
 
@@ -141,6 +142,29 @@ $fields = [
         'placeholder' => 'Ví dụ: SUB001',
     ],
 
+
+    'telegram_bot_username' => [
+        'label' => 'Username bot Telegram',
+        'section' => 'notifications',
+        'type' => 'text',
+        'placeholder' => 'Ví dụ: DuongMotMI_notify_bot',
+        'help' => 'Chỉ để ghi nhớ, không bắt buộc.',
+    ],
+    'telegram_bot_token' => [
+        'label' => 'Bot Token Telegram',
+        'section' => 'notifications',
+        'type' => 'password',
+        'placeholder' => 'Dán Bot Token mới từ @BotFather',
+        'help' => 'Mở bot trên Telegram và /start trước. Để trống nếu không muốn thay đổi token đã lưu.',
+    ],
+    'telegram_chat_id' => [
+        'label' => 'Chat ID Telegram nhận thông báo',
+        'section' => 'notifications',
+        'type' => 'text',
+        'placeholder' => 'Ví dụ: 123456789',
+        'help' => 'Lấy bằng API getUpdates sau khi đã bấm Start với bot.',
+    ],
+
     'enable_guest_checkout' => [
         'label' => 'Cho phép guest checkout',
         'section' => 'features',
@@ -148,6 +172,12 @@ $fields = [
     ],
     'enable_wallet' => [
         'label' => 'Bật ví tiền',
+        'section' => 'features',
+        'type' => 'checkbox',
+    ],
+
+    'telegram_notify_enabled' => [
+        'label' => 'Bật thông báo Telegram cho đơn đã cọc / đã thanh toán',
         'section' => 'features',
         'type' => 'checkbox',
     ],
@@ -263,6 +293,7 @@ foreach ($fields as $key => $meta) {
     $values[$key] = (string) app_setting($key, $default);
 }
 $hasSepayWebhookApiKey = trim((string)($values['sepay_webhook_api_key'] ?? '')) !== '';
+$hasTelegramBotToken = trim((string)($values['telegram_bot_token'] ?? '')) !== '';
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -554,6 +585,9 @@ $hasSepayWebhookApiKey = trim((string)($values['sepay_webhook_api_key'] ?? '')) 
                                 <?php endif; ?>
                                 <?php if ($key === 'sepay_webhook_api_key' && $hasSepayWebhookApiKey): ?>
                                     <div class="secret-status">Đã lưu API Key SePay. Để trống nếu không muốn thay đổi.</div>
+                                <?php endif; ?>
+                                <?php if ($key === 'telegram_bot_token' && $hasTelegramBotToken): ?>
+                                    <div class="secret-status">Đã lưu Bot Token Telegram. Để trống nếu không muốn thay đổi.</div>
                                 <?php endif; ?>
                             </div>
                         <?php endforeach; ?>

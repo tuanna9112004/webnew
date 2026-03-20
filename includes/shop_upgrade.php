@@ -1847,6 +1847,10 @@ function admin_update_order_payment_status(int $orderId, string $newStatus): voi
     $snapshot = calculate_order_payment_snapshot($order, $newStatus);
     db()->prepare('UPDATE orders SET payment_status = ?, paid_amount = ?, remaining_amount = ?, updated_at = NOW() WHERE id = ?')
         ->execute([$newStatus, $snapshot['paid_amount'], $snapshot['remaining_amount'], $orderId]);
+
+    if ((string)$order['payment_status'] !== $newStatus && telegram_should_notify_payment_status($newStatus)) {
+        notify_order_payment_status_via_telegram($orderId);
+    }
 }
 
 function sync_order_payment_status(int $orderId): void
@@ -1891,6 +1895,8 @@ function mark_payment_intent_paid(int $paymentIntentId, array $paymentData): arr
         return ['ok' => false, 'message' => 'Không tìm thấy payment intent.'];
     }
 
+    $notifyOrderId = !empty($intent['order_id']) ? (int)$intent['order_id'] : 0;
+
     db()->beginTransaction();
     try {
         $paymentStmt = db()->prepare('INSERT INTO payments (payment_intent_id, customer_id, order_id, provider, provider_transaction_id, provider_reference_code, transfer_type, paid_amount, fee_amount, net_amount, payment_status, raw_content, paid_at, confirmed_at, raw_payload_text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, NOW(), NOW(), ?, NOW())');
@@ -1912,19 +1918,26 @@ function mark_payment_intent_paid(int $paymentIntentId, array $paymentData): arr
 
         db()->prepare('UPDATE payment_intents SET status = ?, updated_at = NOW() WHERE id = ?')->execute(['paid', $paymentIntentId]);
 
-        if (!empty($intent['order_id'])) {
-            sync_order_payment_status((int)$intent['order_id']);
-            $order = admin_get_order((int)$intent['order_id']);
+        if ($notifyOrderId > 0) {
+            sync_order_payment_status($notifyOrderId);
+            $order = admin_get_order($notifyOrderId);
             if ($order) {
                 db()->prepare('INSERT INTO order_status_logs (order_id, from_status, to_status, note, changed_by_type, changed_by_id, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())')
-                    ->execute([(int)$intent['order_id'], $order['order_status'], $order['order_status'], 'Nhận thanh toán thành công', 'webhook', null]);
+                    ->execute([$notifyOrderId, $order['order_status'], $order['order_status'], 'Nhận thanh toán thành công', 'webhook', null]);
             }
         }
 
         db()->commit();
+
+        if ($notifyOrderId > 0) {
+            notify_order_payment_status_via_telegram($notifyOrderId);
+        }
+
         return ['ok' => true, 'payment_id' => $paymentId];
     } catch (Throwable $e) {
-        db()->rollBack();
+        if (db()->inTransaction()) {
+            db()->rollBack();
+        }
         if (str_contains($e->getMessage(), 'Duplicate')) {
             return ['ok' => true, 'duplicate' => true];
         }
