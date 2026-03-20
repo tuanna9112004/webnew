@@ -57,8 +57,15 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
 ?>
 
 <style>
-    /* CSS Tối ưu Timeline & Mobile */
-    .order-timeline-container { position: relative; margin: 30px 0 40px; }
+    /* Reset & Khóa tràn viền */
+    html, body { max-width: 100vw !important; overflow-x: hidden !important; }
+    .order-shell, .order-shell *, .order-shell *::before, .order-shell *::after { box-sizing: border-box !important; }
+    .word-break { word-break: break-word; overflow-wrap: break-word; }
+
+    .order-shell { padding: 24px 16px; width: 100%; max-width: 100vw; overflow-x: hidden; margin: 0 auto; }
+
+    /* CSS Tối ưu Timeline */
+    .order-timeline-container { position: relative; margin: 30px 0 40px; width: 100%; }
     .order-timeline { display: flex; justify-content: space-between; position: relative; z-index: 1; }
     .timeline-line { position: absolute; top: 16px; left: 10%; right: 10%; height: 3px; background: #e2e8f0; z-index: 0; border-radius: 3px; }
     .timeline-line-progress { position: absolute; top: 0; left: 0; height: 100%; background: #3b82f6; border-radius: 3px; transition: width 0.3s ease; }
@@ -79,34 +86,81 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
     /* Hiển thị phân loại sản phẩm */
     .variant-badge { display: inline-block; background: #f1f5f9; color: #475569; font-size: 12px; padding: 3px 8px; border-radius: 6px; margin: 4px 0; border: 1px solid #e2e8f0; font-weight: 500; }
     
-    /* Responsive Table */
-    .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
-    .table-responsive table { width: 100%; min-width: 500px; }
+    /* Responsive Table mặc định */
+    .table-responsive { width: 100%; border-radius: 8px; overflow: hidden; }
+    .table-responsive table { width: 100%; border-collapse: collapse; }
+    .data-table th, .data-table td { padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+    .data-table th { background: #f8fafc; font-weight: 600; color: #475569; }
 
-    /* Mobile Optimization */
-    @media (max-width: 768px) {
-        .grid-2 { grid-template-columns: 1fr; gap: 20px; }
-        .order-timeline-container { margin: 20px 0; }
-        .order-timeline { flex-direction: column; align-items: flex-start; gap: 20px; }
-        .timeline-line { width: 3px; height: auto; top: 10px; bottom: 10px; left: 17px; right: auto; }
-        .timeline-line-progress { width: 100%; height: 0; } /* Chiều cao tiến trình sẽ được tính toán qua JS nếu cần, nhưng ở Mobile ta dùng flex-direction column nên bỏ line cũng được */
+    /* 📱 TỐI ƯU HÓA CHO MOBILE 📱 */
+    @media screen and (max-width: 768px) {
+        .order-shell { padding: 16px 12px; }
+        .grid-2 { display: flex; flex-direction: column; gap: 16px; }
         
-        .timeline-step { flex-direction: row; gap: 16px; align-items: center; width: 100%; text-align: left; }
-        .timeline-icon { margin-bottom: 0; }
+        /* Chỉnh Header Đơn hàng */
+        .section-title { font-size: 16px !important; margin-bottom: 6px; }
+        .section-subtitle { font-size: 13px; }
+        .status-pill { font-size: 12px; padding: 4px 10px; display: inline-block; }
         
-        .summary-box .flex-between { flex-wrap: wrap; }
+        /* Timeline dọc trên Mobile */
+        .order-timeline-container { margin: 20px 0; padding-left: 8px; }
+        .order-timeline { flex-direction: column; align-items: flex-start; gap: 0; }
+        .timeline-line { top: 0; left: 26px; height: 100%; width: 2px; right: auto; bottom: auto; background: #e2e8f0; }
+        .timeline-line-progress { height: var(--mobile-progress); width: 100%; } 
+        
+        .timeline-step { flex-direction: row; gap: 16px; align-items: flex-start; width: 100%; text-align: left; margin-bottom: 24px; }
+        .timeline-step:last-child { margin-bottom: 0; }
+        .timeline-icon { width: 32px; height: 32px; font-size: 13px; margin-bottom: 0; z-index: 2; flex-shrink: 0; }
+        .timeline-label { margin-top: 6px; font-size: 13px; }
+        
+        /* Tóm tắt & Thanh toán */
+        .summary-box { font-size: 14px; }
+        .summary-box .flex-between { flex-wrap: wrap; margin-top: 10px !important; justify-content: space-between; gap: 4px; }
+        .address-card { padding: 12px !important; }
+
+        /* Biến Bảng thành Danh sách Thẻ (Card) */
+        .table-responsive { background: transparent; overflow: visible; }
+        .data-table, .data-table tbody, .data-table tr, .data-table td { display: block; width: 100%; }
+        .data-table thead { display: none; /* Ẩn thẻ head trên mobile */ }
+        
+        .data-table tbody tr { 
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; 
+            margin-bottom: 16px; padding: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); 
+        }
+        
+        .data-table tbody td { 
+            display: flex; justify-content: space-between; align-items: center; 
+            padding: 8px 0; border-bottom: 1px dashed #e2e8f0; text-align: right !important; 
+            font-size: 14px; gap: 8px;
+        }
+        
+        .data-table tbody td:last-child { border-bottom: none; padding-bottom: 0; }
+        
+        .data-table tbody td:first-child { 
+            flex-direction: column; align-items: flex-start; text-align: left !important; 
+            background: #f8fafc; padding: 12px; border-radius: 6px; margin-bottom: 8px; border-bottom: none;
+        }
+        
+        /* Gắn nhãn tự động cho ô dữ liệu dựa vào data-label */
+        .data-table tbody td::before { 
+            content: attr(data-label); font-weight: 500; color: #64748b; 
+            font-size: 13px; flex-shrink: 0; 
+        }
+        .data-table tbody td:first-child::before { display: none; }
+        
+        .btn-primary, .btn-secondary { font-size: 14px; padding: 12px; width: 100%; display: block; text-align: center; margin-bottom: 8px; }
     }
 </style>
 
 <div class="order-shell" style="padding-top:24px;">
     <div class="grid-2">
         <div class="order-card">
-            <div class="flex-between" style="align-items: flex-start; margin-bottom: 24px;">
-                <div>
-                    <h1 class="section-title">Mã đơn: <?= e($order['order_code']) ?></h1>
+            <div class="flex-between" style="align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+                <div style="flex: 1; min-width: 100%;">
+                    <h1 class="section-title word-break">Mã đơn: <?= e($order['order_code']) ?></h1>
                     <p class="section-subtitle">Ngày đặt: <?= e(date('d/m/Y - H:i', strtotime($order['placed_at']))) ?></p>
                 </div>
-                <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                <div style="display:flex; gap:8px; flex-wrap:wrap; width: 100%;">
                     <span class="status-pill <?= e($paymentClass) ?>"><?= e($paymentStatusText) ?></span>
                 </div>
             </div>
@@ -127,10 +181,10 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
                         </div>
                     </div>
                 <?php else: ?>
-                    <div class="timeline-line">
-                        <?php 
-                            $progressWidth = ($currentStepIndex > 0) ? ($currentStepIndex / (count($timelineSteps) - 1)) * 100 : 0; 
-                        ?>
+                    <?php 
+                        $progressWidth = ($currentStepIndex > 0) ? ($currentStepIndex / (count($timelineSteps) - 1)) * 100 : 0; 
+                    ?>
+                    <div class="timeline-line" style="--mobile-progress: <?= $progressWidth ?>%;">
                         <div class="timeline-line-progress" style="width: <?= $progressWidth ?>%;"></div>
                     </div>
                     <div class="order-timeline">
@@ -168,22 +222,21 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
                     </thead>
                     <tbody>
                         <?php foreach ($items as $item): 
-                            // Thử lấy thông tin biến thể từ các cấu trúc dữ liệu phổ biến
                             $variantInfo = $item['variant_name_snapshot'] ?? $item['variant_snapshot'] ?? $item['attributes'] ?? '';
                         ?>
                             <tr>
-                                <td>
-                                    <strong style="color: #0f172a;"><?= e($item['product_name_snapshot']) ?></strong><br>
+                                <td data-label="Sản phẩm">
+                                    <strong style="color: #0f172a; display: block; margin-bottom: 4px;" class="word-break"><?= e($item['product_name_snapshot']) ?></strong>
                                     
                                     <?php if (!empty($variantInfo)): ?>
-                                        <span class="variant-badge">Phân loại: <?= e((string)$variantInfo) ?></span><br>
+                                        <span class="variant-badge word-break">Phân loại: <?= e((string)$variantInfo) ?></span><br>
                                     <?php endif; ?>
                                     
-                                    <span style="color:#64748b; font-size:13px;">Mã SP: <?= e($item['product_code_snapshot']) ?></span>
+                                    <span style="color:#64748b; font-size:13px; display: inline-block; margin-top: 4px;" class="word-break">Mã SP: <?= e($item['product_code_snapshot']) ?></span>
                                 </td>
-                                <td style="text-align: center; font-weight: 500;"><?= (int)$item['quantity'] ?></td>
-                                <td style="text-align: right;"><?= format_price($item['final_unit_price']) ?></td>
-                                <td style="text-align: right; font-weight: 600; color: #0f172a;"><?= format_price($item['line_total']) ?></td>
+                                <td data-label="Số lượng" style="text-align: right; font-weight: 500;"><?= (int)$item['quantity'] ?></td>
+                                <td data-label="Đơn giá" style="text-align: right;" class="word-break"><?= format_price($item['final_unit_price']) ?></td>
+                                <td data-label="Thành tiền" style="text-align: right; font-weight: 600; color: #0f172a;" class="word-break"><?= format_price($item['line_total']) ?></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -191,25 +244,25 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
             </div>
 
             <div class="summary-box mt-24">
-                <div class="flex-between"><span>Tổng tiền hàng:</span><strong><?= format_price($order['subtotal_amount']) ?></strong></div>
-                <div class="flex-between mt-16"><span>Phí vận chuyển:</span><strong><?= format_price($order['shipping_fee']) ?></strong></div>
+                <div class="flex-between"><span>Tổng tiền hàng:</span><strong class="word-break"><?= format_price($order['subtotal_amount']) ?></strong></div>
+                <div class="flex-between mt-16"><span>Phí vận chuyển:</span><strong class="word-break"><?= format_price($order['shipping_fee']) ?></strong></div>
                 <div class="flex-between mt-16" style="border-top: 1px dashed #cbd5e1; padding-top: 16px;">
-                    <span>Tổng cộng:</span><strong style="font-size: 18px; color: #dc2626;"><?= format_price($order['total_amount']) ?></strong>
+                    <span>Tổng cộng:</span><strong style="font-size: 18px; color: #dc2626;" class="word-break"><?= format_price($order['total_amount']) ?></strong>
                 </div>
-                <div class="flex-between mt-16"><span>Đã thanh toán:</span><strong style="color: #10b981;"><?= format_price($order['paid_amount']) ?></strong></div>
-                <div class="flex-between mt-16"><span>Số tiền còn lại:</span><strong><?= format_price($order['remaining_amount']) ?></strong></div>
+                <div class="flex-between mt-16"><span>Đã thanh toán:</span><strong style="color: #10b981;" class="word-break"><?= format_price($order['paid_amount']) ?></strong></div>
+                <div class="flex-between mt-16"><span>Số tiền còn lại:</span><strong class="word-break"><?= format_price($order['remaining_amount']) ?></strong></div>
             </div>
 
             <?php if ($address): ?>
                 <div class="mt-24">
                     <h2 class="section-title" style="font-size:18px;">Địa chỉ nhận hàng</h2>
                     <div class="address-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
-                        <strong style="font-size: 15px; color: #0f172a;"><?= e($address['receiver_name']) ?> - <?= e($address['receiver_phone']) ?></strong>
-                        <div style="margin-top:8px; color:#475569; line-height: 1.5;">
+                        <strong style="font-size: 15px; color: #0f172a;" class="word-break"><?= e($address['receiver_name']) ?> - <?= e($address['receiver_phone']) ?></strong>
+                        <div style="margin-top:8px; color:#475569; line-height: 1.5;" class="word-break">
                             <?= e($address['address_line'] . ', ' . $address['ward_name'] . ', ' . $address['district_name'] . ', ' . $address['province_name']) ?>
                         </div>
                         <?php if (!empty($address['address_note'])): ?>
-                            <div style="margin-top:8px; color:#ef4444; background: #fee2e2; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
+                            <div style="margin-top:8px; color:#ef4444; background: #fee2e2; padding: 8px 12px; border-radius: 6px; font-size: 13px;" class="word-break">
                                 <strong>Ghi chú:</strong> <?= e($address['address_note']) ?>
                             </div>
                         <?php endif; ?>
@@ -225,15 +278,15 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
                 <p class="section-subtitle" style="margin-bottom: 20px;">Hệ thống đã tạo mã thanh toán tự động, vui lòng chuyển khoản đúng nội dung để đơn hàng được duyệt tự động.</p>
 
                 <div class="summary-box">
-                    <div class="flex-between"><span>Phương thức:</span><strong><?= e($paymentPlanText) ?></strong></div>
-                    <div class="flex-between mt-16"><span>Cần thanh toán:</span><strong style="font-size: 18px; color: #ef4444;"><?= format_price($intent['requested_amount']) ?></strong></div>
-                    <div class="flex-between mt-16"><span>Ngân hàng:</span><strong><?= e($bankName) ?></strong></div>
-                    <div class="flex-between mt-16"><span>Số tài khoản:</span><strong style="font-size: 16px; color: #2563eb;"><?= e($bankAccountNo) ?></strong></div>
-                    <div class="flex-between mt-16"><span>Chủ tài khoản:</span><strong><?= e($bankAccountName) ?></strong></div>
+                    <div class="flex-between"><span>Phương thức:</span><strong class="word-break"><?= e($paymentPlanText) ?></strong></div>
+                    <div class="flex-between mt-16"><span>Cần thanh toán:</span><strong style="font-size: 18px; color: #ef4444;" class="word-break"><?= format_price($intent['requested_amount']) ?></strong></div>
+                    <div class="flex-between mt-16"><span>Ngân hàng:</span><strong class="word-break"><?= e($bankName) ?></strong></div>
+                    <div class="flex-between mt-16"><span>Số tk:</span><strong style="font-size: 16px; color: #2563eb;" class="word-break"><?= e($bankAccountNo) ?></strong></div>
+                    <div class="flex-between mt-16"><span>Chủ tk:</span><strong class="word-break"><?= e($bankAccountName) ?></strong></div>
                     
                     <div class="mt-16 p-4" style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; text-align: center;">
                         <span style="color:#3b82f6; font-size: 13px; font-weight: 600;">NỘI DUNG CHUYỂN KHOẢN (BẮT BUỘC)</span>
-                        <div style="font-weight:800; font-size:20px; color: #1e3a8a; margin-top:8px; letter-spacing: 1px;">
+                        <div class="word-break" style="font-weight:800; font-size:20px; color: #1e3a8a; margin-top:8px; letter-spacing: 1px;">
                             <?= e($intent['transfer_note']) ?>
                         </div>
                     </div>
@@ -241,26 +294,26 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
 
                 <?php if ($qrImageUrl): ?>
                     <div class="address-card mt-24" style="text-align:center; background: #fff;">
-                        <div style="font-weight:700; font-size:16px; margin-bottom:16px; color: #0f172a;">Quét mã QR để thanh toán nhanh</div>
-                        <img src="<?= e($qrImageUrl) ?>" alt="Mã QR Thanh Toán" style="max-width:250px; width:100%; border:2px solid #e2e8f0; border-radius:12px; padding:12px; box-shadow:0 8px 24px rgba(15,23,42,.06);">
+                        <div style="font-weight:700; font-size:16px; margin-bottom:16px; color: #0f172a;">Quét mã QR để thanh toán</div>
+                        <img src="<?= e($qrImageUrl) ?>" alt="Mã QR Thanh Toán" style="max-width:200px; width:100%; border:2px solid #e2e8f0; border-radius:12px; padding:12px; box-shadow:0 8px 24px rgba(15,23,42,.06); margin: 0 auto; display: block;">
                         <div style="margin-top:16px; color:#64748b; font-size:13px; line-height: 1.5;">
-                            Quét mã QR qua ứng dụng ngân hàng hoặc ví điện tử. Hệ thống sẽ tự động xác nhận đơn hàng sau 1-3 phút kể từ khi bạn chuyển khoản thành công.
+                            Quét mã QR qua ứng dụng ngân hàng hoặc ví điện tử. Tự động xác nhận sau 1-3 phút.
                         </div>
                     </div>
                 <?php endif; ?>
             <?php else: ?>
                 <?php
                     $paymentMessage = match ($currentPaymentStatus) {
-                        'da_dat_coc' => ['#eff6ff', '#2563eb', 'Đơn hàng đã được ghi nhận tiền cọc. Phần còn lại sẽ thu khi giao hàng hoặc theo cách shop xác nhận với bạn.'],
+                        'da_dat_coc' => ['#eff6ff', '#2563eb', 'Đơn hàng đã được ghi nhận tiền cọc. Phần còn lại sẽ thu khi giao hàng.'],
                         'da_thanh_toan' => ['#ecfdf5', '#10b981', 'Đơn hàng đã được ghi nhận thanh toán 100%.'],
-                        'cho_hoan_tien' => ['#fff7ed', '#ea580c', 'Đơn đã hủy/trả hàng và shop đang xử lý hoàn tiền cho bạn.'],
+                        'cho_hoan_tien' => ['#fff7ed', '#ea580c', 'Đơn đã hủy/trả hàng và shop đang xử lý hoàn tiền.'],
                         'da_hoan_tien' => ['#eef2ff', '#4f46e5', 'Shop đã hoàn tiền xong cho đơn hàng này.'],
                         default => ['#f8fafc', '#64748b', 'Đơn hiện chưa có yêu cầu thanh toán trực tuyến đang chờ xử lý.'],
                     };
                 ?>
-                <div class="alert alert-success" style="display: flex; align-items: center; gap: 10px; padding: 16px; background: <?= e($paymentMessage[0]) ?>; border: 1px solid <?= e($paymentMessage[1]) ?>; color: <?= e($paymentMessage[1]) ?>; border-radius: 8px;">
-                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    <strong><?= e($paymentStatusText) ?>.</strong> <?= e($paymentMessage[2]) ?>
+                <div class="alert alert-success" style="display: flex; gap: 10px; padding: 16px; background: <?= e($paymentMessage[0]) ?>; border: 1px solid <?= e($paymentMessage[1]) ?>; color: <?= e($paymentMessage[1]) ?>; border-radius: 8px;">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="flex-shrink: 0;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <div><strong><?= e($paymentStatusText) ?>.</strong> <?= e($paymentMessage[2]) ?></div>
                 </div>
             <?php endif; ?>
 
@@ -282,10 +335,10 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
                             <tbody>
                                 <?php foreach ($payments as $payment): ?>
                                     <tr>
-                                        <td style="font-size: 13px; color: #475569;"><?= e($payment['provider_transaction_id']) ?></td>
-                                        <td style="font-weight: 600; color: #10b981;"><?= format_price($payment['paid_amount']) ?></td>
-                                        <td><span class="variant-badge"><?= e($payment['provider']) ?></span></td>
-                                        <td style="text-align: right; font-size: 13px; color: #64748b;"><?= e(date('d/m/Y H:i', strtotime($payment['created_at']))) ?></td>
+                                        <td data-label="Mã GD" style="font-size: 13px; color: #475569;" class="word-break"><?= e($payment['provider_transaction_id']) ?></td>
+                                        <td data-label="Số tiền" style="font-weight: 600; color: #10b981; text-align: right;" class="word-break"><?= format_price($payment['paid_amount']) ?></td>
+                                        <td data-label="Kênh" style="text-align: right;"><span class="variant-badge"><?= e($payment['provider']) ?></span></td>
+                                        <td data-label="Thời gian" style="text-align: right; font-size: 13px; color: #64748b;" class="word-break"><?= e(date('d/m/Y H:i', strtotime($payment['created_at']))) ?></td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -294,9 +347,9 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
                 <?php endif; ?>
             </div>
 
-            <div class="mt-24" style="display:flex; gap:12px; flex-wrap:wrap;">
-                <a class="btn-secondary" href="<?= route_url('/index.php') ?>" style="flex: 1; text-align: center;">Tiếp tục mua sắm</a>
-                <a class="btn-primary" target="_blank" rel="noopener noreferrer" href="<?= e(shop_zalo_link()) ?>" style="flex: 1; text-align: center; background: #0068ff; border-color: #0068ff;">Hỗ trợ qua Zalo</a>
+            <div class="mt-24" style="display:flex; flex-direction: column; gap:12px; flex-wrap:wrap;">
+                <a class="btn-secondary" href="<?= route_url('/index.php') ?>" style="text-align: center;">Tiếp tục mua sắm</a>
+                <a class="btn-primary" target="_blank" rel="noopener noreferrer" href="<?= e(shop_zalo_link()) ?>" style="text-align: center; background: #0068ff; border-color: #0068ff;">Hỗ trợ qua Zalo</a>
             </div>
         </div>
     </div>
@@ -331,9 +384,7 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
             const data = await response.json();
             if (!data || !data.ok) return;
 
-            // Nếu trạng thái thanh toán thay đổi (ví dụ: đang chờ -> đã thanh toán)
             if (data.payment_status !== lastPaymentStatus) {
-                // Tải lại trang để cập nhật toàn bộ giao diện mới nhất
                 window.location.reload();
             }
         } catch (error) {
@@ -343,7 +394,6 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
         }
     };
 
-    // Tự động kiểm tra trạng thái mỗi 5 giây
     setInterval(checkPaymentStatus, 5000);
 })();
 </script>

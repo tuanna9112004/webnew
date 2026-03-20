@@ -117,9 +117,12 @@ require_once __DIR__ . '/../includes/header.php';
 
 .form-group { margin-bottom: 16px; }
 .form-label { display: block; font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 6px; }
-.form-control { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 15px; transition: border-color 0.2s; outline: none; }
+.form-control { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 15px; transition: border-color 0.2s; outline: none; box-sizing: border-box; }
 .form-control:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
 .form-control:disabled, .form-control[readonly] { background-color: #f3f4f6; color: #6b7280; cursor: not-allowed; }
+
+/* CSS cho Select */
+select.form-control { cursor: pointer; background-color: #fff; appearance: auto; -webkit-appearance: auto; }
 
 .btn-primary { background: #2563eb; color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; display: inline-flex; justify-content: center; width: auto; text-decoration: none; }
 .btn-secondary { background: #f1f5f9; color: #1e293b; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; text-decoration: none; font-size: 14px; }
@@ -298,17 +301,23 @@ require_once __DIR__ . '/../includes/header.php';
                 
                 <div class="form-group">
                     <label class="form-label">Tỉnh / Thành phố</label>
-                    <input class="form-control" type="text" name="province_name" placeholder="VD: Hà Nội" required>
+                    <select class="form-control" name="province_name" id="province_select" required>
+                        <option value="">-- Đang tải dữ liệu... --</option>
+                    </select>
                 </div>
                 
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                     <div class="form-group">
                         <label class="form-label">Quận / Huyện</label>
-                        <input class="form-control" type="text" name="district_name" placeholder="VD: Cầu Giấy" required>
+                        <select class="form-control" name="district_name" id="district_select" required>
+                            <option value="">-- Chọn Quận/Huyện --</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Phường / Xã</label>
-                        <input class="form-control" type="text" name="ward_name" placeholder="VD: Dịch Vọng" required>
+                        <select class="form-control" name="ward_name" id="ward_select" required>
+                            <option value="">-- Chọn Phường/Xã --</option>
+                        </select>
                     </div>
                 </div>
 
@@ -384,8 +393,66 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+
 <script>
-// Logic JavaScript đổ dữ liệu vào Form Sửa
+// ==========================================
+// HỆ THỐNG TẢI NHANH ĐỊA GIỚI HÀNH CHÍNH (ĐỘ TRỄ 0.1s)
+// ==========================================
+$(document).ready(function() {
+    // Gọi API lấy danh sách Tỉnh/Thành
+    $.getJSON('https://esgoo.net/api-tinhthanh/1/0.htm', function(data_tinh) {
+        if (data_tinh.error === 0) {
+            $("#province_select").html('<option value="">-- Chọn Tỉnh / Thành phố --</option>');
+            $.each(data_tinh.data, function (key, val) {
+                $("#province_select").append('<option value="'+val.full_name+'" data-id="'+val.id+'">'+val.full_name+'</option>');
+            });
+        }
+    });
+
+    // Khi chọn Tỉnh -> Xổ danh sách Quận/Huyện
+    $("#province_select").change(function() {
+        var idtinh = $(this).find(':selected').data('id');
+        $("#district_select").html('<option value="">-- Đang tải... --</option>');
+        $("#ward_select").html('<option value="">-- Chọn Phường / Xã --</option>');
+        
+        if (idtinh) {
+            $.getJSON('https://esgoo.net/api-tinhthanh/2/'+idtinh+'.htm', function(data_quan) {
+                if (data_quan.error === 0) {
+                    $("#district_select").html('<option value="">-- Chọn Quận / Huyện --</option>');
+                    $.each(data_quan.data, function (key, val) {
+                        $("#district_select").append('<option value="'+val.full_name+'" data-id="'+val.id+'">'+val.full_name+'</option>');
+                    });
+                }
+            });
+        } else {
+            $("#district_select").html('<option value="">-- Chọn Quận / Huyện --</option>');
+        }
+    });
+
+    // Khi chọn Quận -> Xổ danh sách Phường/Xã
+    $("#district_select").change(function() {
+        var idquan = $(this).find(':selected').data('id');
+        $("#ward_select").html('<option value="">-- Đang tải... --</option>');
+        
+        if (idquan) {
+            $.getJSON('https://esgoo.net/api-tinhthanh/3/'+idquan+'.htm', function(data_phuong) {
+                if (data_phuong.error === 0) {
+                    $("#ward_select").html('<option value="">-- Chọn Phường / Xã --</option>');
+                    $.each(data_phuong.data, function (key, val) {
+                        $("#ward_select").append('<option value="'+val.full_name+'">'+val.full_name+'</option>');
+                    });
+                }
+            });
+        } else {
+            $("#ward_select").html('<option value="">-- Chọn Phường / Xã --</option>');
+        }
+    });
+});
+
+// ==========================================
+// LOGIC SỬA / HỦY BỎ ĐỊA CHỈ
+// ==========================================
 function editAddress(btn) {
     const form = document.getElementById('address-form');
     
@@ -394,15 +461,52 @@ function editAddress(btn) {
     document.getElementById('address-form-type').value = 'edit_address';
     document.getElementById('edit_address_id').value = btn.dataset.id;
     
-    // Điền dữ liệu
+    // Điền dữ liệu cơ bản
     form.elements['receiver_name'].value = btn.dataset.name;
     form.elements['receiver_phone'].value = btn.dataset.phone;
-    form.elements['province_name'].value = btn.dataset.province;
-    form.elements['district_name'].value = btn.dataset.district;
-    form.elements['ward_name'].value = btn.dataset.ward;
     form.elements['address_line'].value = btn.dataset.line;
     form.elements['label'].value = btn.dataset.label;
     form.elements['is_default_shipping'].checked = btn.dataset.default == '1';
+    
+    // Load nhanh chuỗi địa giới
+    const provName = btn.dataset.province;
+    const distName = btn.dataset.district;
+    const wardName = btn.dataset.ward;
+
+    // 1. Chờ load Tỉnh, chọn đúng Tỉnh, lấy id tỉnh
+    $.getJSON('https://esgoo.net/api-tinhthanh/1/0.htm', function(data_tinh) {
+        $("#province_select").html('<option value="">-- Chọn Tỉnh / Thành phố --</option>');
+        var provId = null;
+        $.each(data_tinh.data, function (key, val) {
+            var selected = (val.full_name === provName) ? 'selected' : '';
+            if(selected) provId = val.id;
+            $("#province_select").append('<option value="'+val.full_name+'" data-id="'+val.id+'" '+selected+'>'+val.full_name+'</option>');
+        });
+
+        // 2. Load Quận dựa trên Tỉnh
+        if(provId) {
+            $.getJSON('https://esgoo.net/api-tinhthanh/2/'+provId+'.htm', function(data_quan) {
+                $("#district_select").html('<option value="">-- Chọn Quận / Huyện --</option>');
+                var distId = null;
+                $.each(data_quan.data, function (key, val) {
+                    var selected = (val.full_name === distName) ? 'selected' : '';
+                    if(selected) distId = val.id;
+                    $("#district_select").append('<option value="'+val.full_name+'" data-id="'+val.id+'" '+selected+'>'+val.full_name+'</option>');
+                });
+
+                // 3. Load Xã dựa trên Quận
+                if(distId) {
+                    $.getJSON('https://esgoo.net/api-tinhthanh/3/'+distId+'.htm', function(data_phuong) {
+                        $("#ward_select").html('<option value="">-- Chọn Phường / Xã --</option>');
+                        $.each(data_phuong.data, function (key, val) {
+                            var selected = (val.full_name === wardName) ? 'selected' : '';
+                            $("#ward_select").append('<option value="'+val.full_name+'" '+selected+'>'+val.full_name+'</option>');
+                        });
+                    });
+                }
+            });
+        }
+    });
     
     // Hiện nút Hủy và đổi text nút Lưu
     document.getElementById('btn-save-address').innerText = 'Cập nhật địa chỉ';
@@ -412,7 +516,6 @@ function editAddress(btn) {
     document.getElementById('address-form-container').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-// Logic Hủy sửa -> Quay về form thêm mới
 function cancelEdit() {
     const form = document.getElementById('address-form');
     
@@ -426,6 +529,9 @@ function cancelEdit() {
     // Giữ nguyên Tên và SĐT mặc định của khách
     form.elements['receiver_name'].value = "<?= e($customer['full_name'] ?? '') ?>";
     form.elements['receiver_phone'].value = "<?= e($customer['phone'] ?? '') ?>";
+    
+    // Reset thẻ Select về rỗng (load lại mảng tỉnh thành)
+    $("#province_select").val('').trigger('change');
     
     document.getElementById('btn-save-address').innerText = 'Lưu địa chỉ';
     document.getElementById('btn-cancel-edit').style.display = 'none';

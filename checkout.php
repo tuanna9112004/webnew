@@ -59,101 +59,90 @@ require_once __DIR__ . '/includes/header.php';
 ?>
 
 <style>
-/* CSS cho phần chọn phương thức thanh toán to hơn */
-.payment-options-container {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    margin-top: 10px;
-}
-.payment-option-label {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 18px 20px;
-    border: 2px solid #e5e7eb;
-    border-radius: 12px;
-    background: #fff;
-    font-size: 17px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-.payment-option-label input[type="radio"] {
-    width: 24px;
-    height: 24px;
-    margin: 0;
-    cursor: pointer;
-    accent-color: #0f172a; /* Đổi màu xanh đen cho nút tick, có thể thay đổi */
-}
-.payment-option-label:hover {
-    border-color: #cbd5e1;
-    background: #f8fafc;
-}
-/* Hiệu ứng khi được chọn (hoạt động tốt trên trình duyệt hiện đại) */
-.payment-option-label:has(input:checked) {
-    border-color: #0f172a;
-    background: #f8fafc;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+/* =========================================
+   TỐI ƯU GIAO DIỆN CHECKOUT & MOBILE
+========================================= */
+:root {
+    --primary-color: #111827;
+    --border-color: #e5e7eb;
+    --text-muted: #6b7280;
+    --bg-light: #f8fafc;
 }
 
-/* Tối ưu giao diện Mobile cho trang thanh toán */
-@media (max-width: 768px) {
-    .grid-2 {
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-    }
-    .checkout-card {
-        padding: 16px;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-    .form-group {
-        margin-bottom: 12px;
-    }
-    .form-control, .form-select, .form-textarea {
-        font-size: 16px; /* Ngăn iOS tự zoom khi tap vào input */
-        padding: 12px;
-        border-radius: 8px;
-    }
-    .btn-primary, .btn-secondary {
-        width: 100%;
-        text-align: center;
-        padding: 14px;
-        font-size: 16px;
-        font-weight: 600;
-        border-radius: 8px;
-    }
-    .inline-radio {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-    .inline-radio label {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 12px;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        background: #f9fafb;
-    }
-    .cart-item-card.compact {
-        align-items: flex-start;
-    }
-    .summary-box {
-        background: #f8fafc;
-        padding: 16px;
-        border-radius: 8px;
-    }
+.checkout-shell { padding: 16px; max-width: 1200px; margin: 0 auto; }
+.checkout-layout { display: flex; flex-direction: column; gap: 20px; }
+.checkout-card { background: #fff; padding: 16px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid var(--border-color); }
+.layout-sidebar { order: 1; }
+.layout-main { order: 2; }
+.section-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; color: var(--primary-color); }
+.section-subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 20px; }
+
+.form-grid.col-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 10px; }
+.form-group { display: flex; flex-direction: column; }
+.form-group.full-width { grid-column: 1 / -1; }
+.form-label { font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.form-control, .form-select, .form-textarea { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; font-size: 16px; box-sizing: border-box; transition: border-color 0.2s; background: #fff; }
+.form-control:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: #0f172a; box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.1); }
+.form-textarea { resize: vertical; min-height: 70px; }
+.required-star { color: #ef4444; margin-left: 2px; }
+
+/* CSS cho Select */
+select.form-select { cursor: pointer; appearance: auto; -webkit-appearance: auto; }
+
+.inline-radio { display: flex; flex-direction: row; gap: 8px; }
+.inline-radio label { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 4px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-light); cursor: pointer; font-size: 13px; font-weight: 500; text-align: center; }
+.inline-radio input[type="radio"] { margin: 0; }
+
+.payment-section-title { font-size: 16px; font-weight: 700; color: var(--primary-color); margin-bottom: 12px; }
+.payment-options-container { display: flex; flex-direction: column; gap: 10px; }
+.payment-option-label { display: flex; align-items: center; gap: 12px; padding: 14px; border: 2px solid var(--border-color); border-radius: 10px; background: #fff; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
+.payment-option-label input[type="radio"] { width: 20px; height: 20px; margin: 0; cursor: pointer; accent-color: #0f172a; }
+.payment-option-label:has(input:checked) { border-color: #0f172a; background: var(--bg-light); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+
+.action-buttons { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+.btn-primary, .btn-secondary { width: 100%; text-align: center; padding: 14px; font-size: 15px; font-weight: 600; border-radius: 8px; box-sizing: border-box; cursor: pointer; text-decoration: none; border: none; }
+.btn-primary { background: var(--primary-color); color: #fff; }
+.btn-secondary { background: #f1f5f9; color: var(--primary-color); }
+
+.summary-box { background: var(--bg-light); padding: 16px; border-radius: 12px; margin-top: 16px; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 14px; }
+.flex-between:last-child { margin-bottom: 0; }
+.flex-between strong { font-size: 15px; color: #ef4444; }
+
+.product-preview-card { display: flex; gap: 12px; align-items: flex-start; padding-bottom: 12px; border-bottom: 1px dashed var(--border-color); margin-bottom: 12px; }
+.product-preview-img { width: 70px; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-color); }
+.product-preview-info { flex: 1; }
+.product-preview-title { font-size: 14px; font-weight: 700; line-height: 1.4; color: var(--primary-color); }
+.product-preview-meta { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+
+.alert { padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; line-height: 1.5; }
+.alert-warning { background: #fef08a; color: #854d0e; }
+.alert-error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.alert-info { background: #e0f2fe; color: #075985; }
+.mt-24 { margin-top: 20px; }
+.mb-0 { margin-bottom: 0 !important; }
+.link-muted { color: #2563eb; text-decoration: underline; }
+
+@media (min-width: 768px) {
+    .checkout-shell { padding: 32px 16px; }
+    .checkout-layout { flex-direction: row; align-items: flex-start; }
+    .checkout-card { padding: 28px; }
+    .layout-main { flex: 3; order: 1; }
+    .layout-sidebar { flex: 2; position: sticky; top: 24px; order: 2; }
+    .form-grid.col-2 { gap: 20px 16px; }
+    .form-label { font-size: 14px; }
+    .action-buttons { flex-direction: row; }
+    .product-preview-img { width: 90px; height: 110px; }
+    .product-preview-title { font-size: 16px; }
+    .inline-radio label { padding: 12px; font-size: 14px; }
 }
 </style>
 
-<div class="checkout-shell" style="padding-top:24px;">
+<div class="checkout-shell">
     <?php if ($missing): ?>
         <div class="alert alert-warning">Thiếu bảng hệ thống mới: <?= e(implode(', ', $missing)) ?>. Hãy import file migration trước khi checkout.</div>
     <?php endif; ?>
+    
     <?php if ($error): ?>
         <div class="alert alert-error"><?= e($error) ?></div>
     <?php endif; ?>
@@ -161,56 +150,59 @@ require_once __DIR__ . '/includes/header.php';
     <?php if ($mode === 'cart' && empty($cartTotals['items'])): ?>
         <div class="alert alert-info">Giỏ hàng đang trống. <a class="link-muted" href="<?= route_url('/index.php#product-list') ?>">Quay lại gian hàng</a> hoặc <a class="link-muted" href="<?= route_url('/cart.php') ?>">xem giỏ hàng</a>.</div>
     <?php else: ?>
-    <div class="grid-2">
-        <div class="checkout-card">
-            <h1 class="section-title">Thanh toán trên web</h1>
-            <p class="section-subtitle"><?= $mode === 'cart' ? 'Đơn hàng sẽ gom toàn bộ sản phẩm trong giỏ vào một đơn duy nhất.' : 'Bạn có thể chọn cọc 30% hoặc thanh toán toàn bộ đơn hàng.' ?></p>
+    
+    <div class="checkout-layout">
+        <div class="checkout-card layout-main">
+            <h1 class="section-title">Thanh toán đơn hàng</h1>
+            <p class="section-subtitle"><?= $mode === 'cart' ? 'Gom chung sản phẩm vào một đơn.' : 'Thanh toán cọc hoặc toàn bộ đơn.' ?></p>
+            
             <?php if (!$customer): ?>
-                <div class="alert alert-info">Bạn có thể mua không cần đăng nhập. Muốn lưu thông tin và xem lịch sử đơn? <a class="link-muted" href="<?= route_url('/customer/login.php') ?>">Đăng nhập</a> hoặc <a class="link-muted" href="<?= route_url('/customer/register.php') ?>">tạo tài khoản</a>.</div>
+                <div class="alert alert-info">Đăng nhập để lưu lịch sử: <a class="link-muted" href="<?= route_url('/customer/login.php') ?>">Đăng nhập</a> / <a class="link-muted" href="<?= route_url('/customer/register.php') ?>">Đăng ký</a>.</div>
             <?php endif; ?>
 
             <form method="post" id="checkoutForm">
                 <?= csrf_field() ?>
+                
                 <?php if ($mode === 'single'): ?>
                     <input type="hidden" name="product_id" value="<?= (int)$product['id'] ?>">
                     <?php if ($selectedVariant): ?><input type="hidden" name="variant_id" value="<?= (int)$selectedVariant['id'] ?>"><?php endif; ?>
-                    <div class="form-group">
-                        <label class="form-label">Số lượng</label>
+                    <div class="form-group mb-0 mt-24">
+                        <label class="form-label">Số lượng mua</label>
                         <input class="form-control" type="number" name="quantity" min="1" value="<?= e((string)max(1, (int)old_input('quantity', '1'))) ?>">
                     </div>
                 <?php endif; ?>
 
-                <div class="grid-2">
+                <div class="form-grid col-2 mt-24">
                     <div class="form-group">
-                        <label class="form-label">Họ và tên</label>
-                        <input class="form-control" name="contact_name" value="<?= e(old_input('contact_name', $customer['full_name'] ?? '')) ?>">
+                        <label class="form-label">Họ và tên <span class="required-star">*</span></label>
+                        <input class="form-control" name="contact_name" placeholder="Họ tên" value="<?= e(old_input('contact_name', $customer['full_name'] ?? '')) ?>" required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Số điện thoại</label>
-                        <input class="form-control" name="contact_phone" value="<?= e(old_input('contact_phone', $customer['phone'] ?? '')) ?>">
+                        <label class="form-label">Số điện thoại <span class="required-star">*</span></label>
+                        <input class="form-control" name="contact_phone" placeholder="SĐT" value="<?= e(old_input('contact_phone', $customer['phone'] ?? '')) ?>" required>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Email</label>
-                        <input class="form-control" name="contact_email" value="<?= e(old_input('contact_email', $customer['email'] ?? '')) ?>">
+                    <div class="form-group full-width">
+                        <label class="form-label">Email (Không bắt buộc)</label>
+                        <input class="form-control" name="contact_email" placeholder="Nhập email" value="<?= e(old_input('contact_email', $customer['email'] ?? '')) ?>">
                     </div>
                     
                     <?php if ($customer && $addresses): ?>
-                    <div class="form-group" style="grid-column: 1 / -1;">
-                        <label class="form-label">Lấy địa chỉ đã lưu?</label>
+                    <div class="form-group full-width">
+                        <label class="form-label">Lấy địa chỉ giao hàng</label>
                         <div class="inline-radio">
-                            <label><input type="radio" name="address_source" value="saved" <?= old_input('address_source', 'saved') === 'saved' ? 'checked' : '' ?>> Dùng địa chỉ trong tài khoản</label>
-                            <label><input type="radio" name="address_source" value="manual" <?= old_input('address_source') === 'manual' ? 'checked' : '' ?>> Nhập địa chỉ mới</label>
+                            <label><input type="radio" name="address_source" value="saved" <?= old_input('address_source', 'saved') === 'saved' ? 'checked' : '' ?>> Đã lưu</label>
+                            <label><input type="radio" name="address_source" value="manual" <?= old_input('address_source') === 'manual' ? 'checked' : '' ?>> Nhập mới</label>
                         </div>
                     </div>
                     <?php endif; ?>
                 </div>
 
                 <?php if ($customer && $addresses): ?>
-                <div class="form-group" id="savedAddressContainer">
+                <div class="form-group mt-24" id="savedAddressContainer">
                     <label class="form-label">Chọn địa chỉ đã lưu</label>
                     <select class="form-select" name="saved_address_id" id="savedAddressSelect">
                         <?php foreach ($addresses as $address): ?>
-                            <option value="<?= (int)$address['id'] ?>" <?= (int)old_input('saved_address_id', (string)$address['id']) === (int)$address['id'] ? 'selected' : '' ?>>
+                            <option value="<?= (int)$address['id'] ?>" <?= (int)old_input('saved_address_id', (string)$address['id']) === (int)$address['id'] || !empty($address['is_default_shipping']) ? 'selected' : '' ?>>
                                 <?= e($address['label'] ?: 'Địa chỉ') ?> — <?= e($address['receiver_name']) ?> — <?= e($address['address_line']) ?>
                             </option>
                         <?php endforeach; ?>
@@ -218,29 +210,51 @@ require_once __DIR__ . '/includes/header.php';
                 </div>
                 <?php endif; ?>
 
-                <div class="grid-2">
-                    <div class="form-group"><label class="form-label">Người nhận</label><input class="form-control" name="receiver_name" id="f_receiver_name" value="<?= e(old_input('receiver_name', $customer['full_name'] ?? '')) ?>"></div>
-                    <div class="form-group"><label class="form-label">SĐT người nhận</label><input class="form-control" name="receiver_phone" id="f_receiver_phone" value="<?= e(old_input('receiver_phone', $customer['phone'] ?? '')) ?>"></div>
-                    <div class="form-group"><label class="form-label">Tỉnh/Thành</label><input class="form-control" name="province_name" id="f_province_name" value="<?= e(old_input('province_name')) ?>"></div>
-                    <div class="form-group"><label class="form-label">Quận/Huyện</label><input class="form-control" name="district_name" id="f_district_name" value="<?= e(old_input('district_name')) ?>"></div>
-                    <div class="form-group"><label class="form-label">Phường/Xã</label><input class="form-control" name="ward_name" id="f_ward_name" value="<?= e(old_input('ward_name')) ?>"></div>
-                    <div class="form-group"><label class="form-label">Ghi chú địa chỉ</label><input class="form-control" name="address_note" id="f_address_note" value="<?= e(old_input('address_note')) ?>"></div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Địa chỉ chi tiết</label>
-                    <input class="form-control" name="address_line" id="f_address_line" value="<?= e(old_input('address_line')) ?>">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Ghi chú thêm cho shop</label>
-                    <textarea class="form-textarea" name="customer_note" placeholder="Ví dụ: Giao giờ hành chính, gọi trước khi giao...\n"><?= e(old_input('customer_note')) ?></textarea>
+                <div class="form-grid col-2 mt-24">
+                    <div class="form-group">
+                        <label class="form-label">Người nhận</label>
+                        <input class="form-control" name="receiver_name" id="f_receiver_name" placeholder="Nhập tên người nhận..." value="<?= e(old_input('receiver_name')) ?>">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">SĐT nhận</label>
+                        <input class="form-control" name="receiver_phone" id="f_receiver_phone" placeholder="Nhập SĐT..." value="<?= e(old_input('receiver_phone')) ?>">
+                    </div>
+                    
+                    <div class="form-group full-width">
+                        <label class="form-label">Tỉnh/Thành phố <span class="required-star">*</span></label>
+                        <select class="form-select" name="province_name" id="f_province_name" required>
+                            <option value="">-- Đang tải dữ liệu... --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Quận/Huyện <span class="required-star">*</span></label>
+                        <select class="form-select" name="district_name" id="f_district_name" required>
+                            <option value="">-- Chọn Quận/Huyện --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phường/Xã <span class="required-star">*</span></label>
+                        <select class="form-select" name="ward_name" id="f_ward_name" required>
+                            <option value="">-- Chọn Phường/Xã --</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label class="form-label">Số nhà, Tên đường <span class="required-star">*</span></label>
+                        <input class="form-control" name="address_line" id="f_address_line" placeholder="VD: 123 Đường ABC..." value="<?= e(old_input('address_line')) ?>" required>
+                    </div>
+                    <div class="form-group full-width">
+                        <label class="form-label">Ghi chú thêm cho shop</label>
+                        <textarea class="form-textarea" name="customer_note" placeholder="Ví dụ: Giao giờ hành chính, gọi trước khi giao..."><?= e(old_input('customer_note')) ?></textarea>
+                    </div>
                 </div>
 
-                <div class="form-group mt-24">
-                    <label class="form-label" style="font-size: 18px; font-weight: 700; color: #111827;">Chọn cách thanh toán trên web</label>
+                <div class="mt-24">
+                    <div class="payment-section-title">Thanh toán</div>
                     <div class="payment-options-container">
                         <label class="payment-option-label">
                             <input type="radio" name="payment_plan" value="deposit_30" <?= old_input('payment_plan', 'deposit_30') === 'deposit_30' ? 'checked' : '' ?>> 
-                            <span>Cọc <?= (int)shop_deposit_rate() ?>%</span>
+                            <span>Cọc <?= (int)shop_deposit_rate() ?>% qua Ngân hàng</span>
                         </label>
                         <label class="payment-option-label">
                             <input type="radio" name="payment_plan" value="full" <?= old_input('payment_plan') === 'full' ? 'checked' : '' ?>> 
@@ -249,115 +263,239 @@ require_once __DIR__ . '/includes/header.php';
                     </div>
                 </div>
 
-                <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:24px;">
-                    <button class="btn-primary" type="submit">Tạo đơn & chờ thanh toán</button>
-                    <a class="btn-secondary" target="_blank" rel="noopener noreferrer" href="<?= e(shop_zalo_link()) ?>">Mua qua Zalo</a>
+                <div class="action-buttons">
+                    <button class="btn-primary" type="submit">Tạo đơn & Thanh toán</button>
+                    <a class="btn-secondary" target="_blank" rel="noopener noreferrer" href="<?= e(shop_zalo_link()) ?>">Hỗ trợ mua qua Zalo</a>
                 </div>
             </form>
         </div>
 
-        <div class="checkout-card">
-            <h2 class="section-title" style="font-size:20px;">Tóm tắt đơn</h2>
+        <div class="checkout-card layout-sidebar">
+            <h2 class="section-title">Tóm tắt đơn hàng</h2>
+            
             <?php if ($mode === 'cart'): ?>
-                <div class="cart-list compact">
+                <div class="mt-24">
                     <?php foreach ($cartTotals['items'] as $item): ?>
-                        <div class="cart-item-card compact">
-                            <div class="cart-item-media compact"><img src="<?= e(resolve_media_url($item['effective_image'] ?: $item['thumbnail'])) ?>" alt="<?= e($item['product_name']) ?>"></div>
-                            <div class="cart-item-main compact">
-                                <div class="cart-item-title"><?= e($item['product_name']) ?></div>
-                                <div class="cart-item-meta"><?= e(build_variant_label([
-                                    'variant_name' => $item['variant_name'],
-                                    'size_value' => $item['size_value'],
-                                    'color_value' => $item['color_value'],
-                                ])) ?></div>
-                                <div class="cart-item-meta">SL: <?= (int)$item['quantity'] ?></div>
+                        <div class="product-preview-card">
+                            <img class="product-preview-img" src="<?= e(resolve_media_url($item['effective_image'] ?: $item['thumbnail'])) ?>" alt="<?= e($item['product_name']) ?>">
+                            <div class="product-preview-info">
+                                <div class="product-preview-title"><?= e($item['product_name']) ?></div>
+                                <div class="product-preview-meta">
+                                    <?= e(build_variant_label([
+                                        'variant_name' => $item['variant_name'],
+                                        'size_value' => $item['size_value'],
+                                        'color_value' => $item['color_value'],
+                                    ])) ?>
+                                </div>
+                                <div class="product-preview-meta">Số lượng: <strong><?= (int)$item['quantity'] ?></strong></div>
+                                <div style="margin-top: 6px; font-weight: 700; color: #ef4444;">
+                                    <?= format_price((float)$item['unit_price_snapshot'] * (int)$item['quantity']) ?>
+                                </div>
                             </div>
-                            <div class="cart-item-price compact"><?= format_price((float)$item['unit_price_snapshot'] * (int)$item['quantity']) ?></div>
                         </div>
                     <?php endforeach; ?>
                 </div>
             <?php else: ?>
-                <div class="address-card" style="display:flex; gap:14px; align-items:flex-start;">
-                    <img src="<?= e(resolve_media_url($product['thumbnail'])) ?>" alt="<?= e($product['product_name']) ?>" style="width:92px; height:110px; object-fit:cover; border-radius:12px; border:1px solid #e5e7eb;">
-                    <div>
-                        <div style="font-size:18px; font-weight:800;"><?= e($product['product_name']) ?></div>
-                        <div style="color:#64748b; font-size:14px; margin-top:4px;">Mã: <?= e($product['product_code']) ?></div>
-                        <div style="color:#111827; font-size:16px; font-weight:800; margin-top:10px;"><?= format_price($price) ?></div>
-                        <?php if ($selectedVariant): ?><div style="color:#64748b;font-size:14px;margin-top:8px;">Biến thể: <?= e(build_variant_label($selectedVariant)) ?></div><?php endif; ?>
+                <div class="product-preview-card mt-24">
+                    <img class="product-preview-img" src="<?= e(resolve_media_url($product['thumbnail'])) ?>" alt="<?= e($product['product_name']) ?>">
+                    <div class="product-preview-info">
+                        <div class="product-preview-title"><?= e($product['product_name']) ?></div>
+                        <div class="product-preview-meta">Mã: <?= e($product['product_code']) ?></div>
+                        <?php if ($selectedVariant): ?>
+                            <div class="product-preview-meta">Phân loại: <?= e(build_variant_label($selectedVariant)) ?></div>
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endif; ?>
-            <div class="summary-box mt-24">
-                <div class="flex-between"><span><?= $mode === 'cart' ? 'Tổng số lượng' : 'Đơn giá' ?></span><strong><?= $mode === 'cart' ? (int)$cartTotals['item_count'] : format_price($price) ?></strong></div>
-                <div class="flex-between mt-16"><span>Tổng tiền dự kiến</span><strong><?= format_price($totalPreview) ?></strong></div>
-                <div class="flex-between mt-16"><span>Cọc dự kiến <?= (int)shop_deposit_rate() ?>%</span><strong><?= format_price($depositPreview) ?></strong></div>
+            
+            <div class="summary-box">
+                <div class="flex-between">
+                    <span><?= $mode === 'cart' ? 'Tổng số lượng:' : 'Đơn giá:' ?></span>
+                    <span style="font-weight: 600; color: #111827;"><?= $mode === 'cart' ? (int)$cartTotals['item_count'] : format_price($price) ?></span>
+                </div>
+                <div class="flex-between">
+                    <span>Tổng tiền:</span>
+                    <strong><?= format_price($totalPreview) ?></strong>
+                </div>
+                <div class="flex-between" style="border-top: 1px dashed #cbd5e1; padding-top: 10px; margin-top: 10px;">
+                    <span>Cọc (<?= (int)shop_deposit_rate() ?>%):</span>
+                    <strong><?= format_price($depositPreview) ?></strong>
+                </div>
             </div>
-            <div class="alert alert-info mt-24 mb-0">Sau khi tạo đơn, hệ thống sẽ sinh mã thanh toán riêng cho đơn của bạn. Khi SePay callback thành công, trạng thái thanh toán của đơn sẽ tự cập nhật.</div>
+            
+            <div class="alert alert-info mt-24 mb-0">
+                Mã QR thanh toán tự động sẽ được tạo ngay sau khi bạn bấm <strong>Tạo đơn</strong>.
+            </div>
         </div>
     </div>
     <?php endif; ?>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Truyền dữ liệu địa chỉ từ PHP sang JS
-    const customerAddresses = <?= json_encode($addresses ?? []) ?>;
-    
-    const radiosSource = document.querySelectorAll('input[name="address_source"]');
-    const selectSaved = document.getElementById('savedAddressSelect');
-    const containerSaved = document.getElementById('savedAddressContainer');
-    
-    // Các trường input cần tự động đổ
-    const fName = document.getElementById('f_receiver_name');
-    const fPhone = document.getElementById('f_receiver_phone');
-    const fProv = document.getElementById('f_province_name');
-    const fDist = document.getElementById('f_district_name');
-    const fWard = document.getElementById('f_ward_name');
-    const fLine = document.getElementById('f_address_line');
-    const fNote = document.getElementById('f_address_note');
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 
-    function applyAddressData() {
-        const source = document.querySelector('input[name="address_source"]:checked')?.value;
-        
-        if (source === 'saved') {
-            if (containerSaved) containerSaved.style.display = 'block';
-            if (selectSaved && customerAddresses.length > 0) {
-                const selectedId = parseInt(selectSaved.value, 10);
-                const addr = customerAddresses.find(a => a.id === selectedId);
-                
-                if (addr) {
-                    fName.value = addr.receiver_name || '';
-                    fPhone.value = addr.receiver_phone || addr.phone || '';
-                    fProv.value = addr.province_name || '';
-                    fDist.value = addr.district_name || '';
-                    fWard.value = addr.ward_name || '';
-                    fLine.value = addr.address_line || '';
-                    fNote.value = addr.address_note || '';
-                }
+<script>
+$(document).ready(function() {
+    const customerAddresses = <?= json_encode($addresses ?? []) ?>;
+    const oldProv = <?= json_encode(old_input('province_name')) ?>;
+    const oldDist = <?= json_encode(old_input('district_name')) ?>;
+    const oldWard = <?= json_encode(old_input('ward_name')) ?>;
+
+    // 1. Tải danh sách 63 Tỉnh/Thành khi trang vừa mở
+    $.getJSON('https://esgoo.net/api-tinhthanh/1/0.htm', function(data_tinh) {
+        if (data_tinh.error === 0) {
+            $("#f_province_name").html('<option value="">-- Chọn Tỉnh / Thành phố --</option>');
+            $.each(data_tinh.data, function (key, val) {
+                $("#f_province_name").append('<option value="'+val.full_name+'" data-id="'+val.id+'">'+val.full_name+'</option>');
+            });
+
+            // Sau khi tải Tỉnh xong, kiểm tra xem có cần đổ dữ liệu không
+            if ($('input[name="address_source"]:checked').val() === 'saved') {
+                applyAddressData();
+            } else if (oldProv) {
+                matchAndSelect($('#f_province_name'), oldProv);
+                loadDistricts($('#f_province_name').find(':selected').data('id'), oldDist, oldWard);
             }
-        } else if (source === 'manual') {
-            if (containerSaved) containerSaved.style.display = 'none';
-            // Để trống form cho người dùng tự nhập mới
-            fName.value = '';
-            fPhone.value = '';
-            fProv.value = '';
-            fDist.value = '';
-            fWard.value = '';
-            fLine.value = '';
-            fNote.value = '';
+        }
+    });
+
+    // 2. Bắt sự kiện khi người dùng tự đổi Tỉnh -> Tải Quận
+    $("#f_province_name").change(function() {
+        var idtinh = $(this).find(':selected').data('id');
+        loadDistricts(idtinh);
+    });
+
+    // 3. Bắt sự kiện khi người dùng tự đổi Quận -> Tải Phường
+    $("#f_district_name").change(function() {
+        var idquan = $(this).find(':selected').data('id');
+        loadWards(idquan);
+    });
+
+    // Hàm tải danh sách Quận/Huyện
+    function loadDistricts(provinceId, districtToSelect = '', wardToSelect = '') {
+        $("#f_district_name").html('<option value="">-- Đang tải... --</option>');
+        $("#f_ward_name").html('<option value="">-- Chọn Phường / Xã --</option>');
+        
+        if (provinceId && provinceId !== 'custom') {
+            $.getJSON('https://esgoo.net/api-tinhthanh/2/'+provinceId+'.htm', function(data_quan) {
+                if (data_quan.error === 0) {
+                    $("#f_district_name").html('<option value="">-- Chọn Quận / Huyện --</option>');
+                    $.each(data_quan.data, function (key, val) {
+                        $("#f_district_name").append('<option value="'+val.full_name+'" data-id="'+val.id+'">'+val.full_name+'</option>');
+                    });
+                    
+                    if (districtToSelect) {
+                        matchAndSelect($('#f_district_name'), districtToSelect);
+                        const dId = $('#f_district_name').find(':selected').data('id');
+                        if (dId) loadWards(dId, wardToSelect);
+                    }
+                }
+            });
+        } else {
+            $("#f_district_name").html('<option value="">-- Chọn Quận / Huyện --</option>');
+            if (districtToSelect) matchAndSelect($('#f_district_name'), districtToSelect);
         }
     }
 
-    // Gắn sự kiện lắng nghe
-    radiosSource.forEach(radio => radio.addEventListener('change', applyAddressData));
-    if (selectSaved) {
-        selectSaved.addEventListener('change', applyAddressData);
+    // Hàm tải danh sách Phường/Xã
+    function loadWards(districtId, wardToSelect = '') {
+        $("#f_ward_name").html('<option value="">-- Đang tải... --</option>');
+        
+        if (districtId && districtId !== 'custom') {
+            $.getJSON('https://esgoo.net/api-tinhthanh/3/'+districtId+'.htm', function(data_phuong) {
+                if (data_phuong.error === 0) {
+                    $("#f_ward_name").html('<option value="">-- Chọn Phường / Xã --</option>');
+                    $.each(data_phuong.data, function (key, val) {
+                        $("#f_ward_name").append('<option value="'+val.full_name+'" data-id="'+val.id+'">'+val.full_name+'</option>');
+                    });
+
+                    if (wardToSelect) {
+                        matchAndSelect($('#f_ward_name'), wardToSelect);
+                    }
+                }
+            });
+        } else {
+            $("#f_ward_name").html('<option value="">-- Chọn Phường / Xã --</option>');
+            if (wardToSelect) matchAndSelect($('#f_ward_name'), wardToSelect);
+        }
     }
 
-    // Chạy lần đầu khi load trang
-    if (radiosSource.length > 0) {
-        applyAddressData();
+    // Hàm tự động đối chiếu và chọn Option (Giải quyết việc chênh lệch tên API và Database)
+    function matchAndSelect($select, text) {
+        if (!text) return;
+        const search = text.toLowerCase().replace(/^(thành phố|tỉnh|quận|huyện|thị xã|phường|xã|thị trấn)\s+/i, '').trim();
+        let matched = false;
+        
+        $select.find('option').each(function() {
+            const optText = $(this).val().toLowerCase().replace(/^(thành phố|tỉnh|quận|huyện|thị xã|phường|xã|thị trấn)\s+/i, '').trim();
+            if (optText === search || $(this).val() === text) {
+                $(this).prop('selected', true);
+                matched = true;
+                return false; // Break khỏi vòng lặp each
+            }
+        });
+
+        // Nếu DB có mà API không có (Ví dụ Tỉnh bị đổi tên), ép tạo 1 option mới để không bị lỗi trống
+        if (!matched) {
+            const newOpt = $('<option>', {
+                value: text,
+                text: text,
+                'data-id': 'custom'
+            });
+            $select.append(newOpt);
+            newOpt.prop('selected', true);
+        }
     }
+
+    // === HÀM XỬ LÝ CHÍNH: ĐỔ DỮ LIỆU ĐỊA CHỈ ĐÃ LƯU ===
+    function applyAddressData() {
+        const source = $('input[name="address_source"]:checked').val();
+        
+        if (source === 'saved') {
+            $('#savedAddressContainer').show();
+            // Lấy ID địa chỉ từ Dropdown
+            const selectedId = parseInt($('#savedAddressSelect').val(), 10);
+            
+            if (customerAddresses.length > 0) {
+                // FIX LỖI: So sánh ép kiểu Int vì PHP trả JSON ID dạng String ("1")
+                const addr = customerAddresses.find(a => parseInt(a.id, 10) === selectedId);
+                
+                if (addr) {
+                    $('#f_receiver_name').val(addr.receiver_name || '');
+                    $('#f_receiver_phone').val(addr.receiver_phone || '');
+                    $('#f_address_line').val(addr.address_line || '');
+                    
+                    // Bắt đầu chuỗi đổ Tỉnh -> Quận -> Xã
+                    if (addr.province_name) {
+                        matchAndSelect($('#f_province_name'), addr.province_name);
+                        const pId = $('#f_province_name').find(':selected').data('id');
+                        if (pId) {
+                            loadDistricts(pId, addr.district_name, addr.ward_name);
+                        }
+                    }
+                }
+            }
+        } else if (source === 'manual') {
+            $('#savedAddressContainer').hide();
+            $('#f_receiver_name').val('');
+            $('#f_receiver_phone').val('');
+            $('#f_address_line').val('');
+            $('#f_province_name').val('').trigger('change');
+        }
+    }
+
+    // Lắng nghe thay đổi khi bấm Radio Button hoặc chọn Địa chỉ khác
+    $('input[name="address_source"]').change(applyAddressData);
+    $('#savedAddressSelect').change(applyAddressData);
+
+    // Chặn lỗi: Nếu người dùng quên nhập Tên/SĐT thì tự động chép từ tài khoản
+    $('#checkoutForm').submit(function() {
+        if (!$('#f_receiver_name').val().trim()) {
+            $('#f_receiver_name').val($('input[name="contact_name"]').val().trim());
+        }
+        if (!$('#f_receiver_phone').val().trim()) {
+            $('#f_receiver_phone').val($('input[name="contact_phone"]').val().trim());
+        }
+    });
 });
 </script>
 
