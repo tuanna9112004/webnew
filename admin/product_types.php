@@ -6,15 +6,31 @@ $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
-    $sort = (int)($_POST['sort_order'] ?? 0);
+    $sortInput = trim($_POST['sort_order'] ?? '');
     $categoryId = (int)($_POST['category_id'] ?? 0);
 
     if ($name !== '' && $categoryId > 0) {
+        // Lấy vị trí lớn nhất hiện tại của loại sản phẩm TRONG CÙNG 1 DANH MỤC
+        $stmtMax = db()->prepare('SELECT MAX(sort_order) FROM product_types WHERE category_id = ?');
+        $stmtMax->execute([$categoryId]);
+        $maxSort = (int)$stmtMax->fetchColumn();
+
+        if ($sortInput === '') {
+            // 1. Trường hợp để trống: Tự động xếp xuống cuối cùng của danh mục đó
+            $sort = $maxSort + 1;
+        } else {
+            // 2. Trường hợp nhập số cụ thể: Chèn vào giữa và đẩy các vị trí cũ xuống (Chỉ đẩy các item cùng danh mục)
+            $sort = (int)$sortInput;
+            $updateStmt = db()->prepare('UPDATE product_types SET sort_order = sort_order + 1 WHERE category_id = ? AND sort_order >= ?');
+            $updateStmt->execute([$categoryId, $sort]);
+        }
+
+        // Thêm mới loại sản phẩm
         insert_product_type($name, $categoryId, $sort);
         redirect('/admin/product_types.php');
+    } else {
+        $error = 'Vui lòng nhập tên loại và chọn đúng danh mục.';
     }
-
-    $error = 'Vui lòng nhập tên loại và chọn đúng danh mục.';
 }
 
 if (isset($_GET['delete'])) {
@@ -228,6 +244,12 @@ body {
     border: 1px solid var(--admin-danger-border);
 }
 
+.alert.info {
+    background-color: var(--admin-info-bg);
+    color: var(--admin-info-text);
+    border: 1px solid var(--admin-info-border);
+}
+
 /* ==========================================
    GRID 2 CỘT (FORM & BẢNG)
    ========================================== */
@@ -408,6 +430,11 @@ select.form-control {
     background-color: var(--admin-danger-bg);
 }
 
+/* Row Animation for filtering */
+.type-row {
+    transition: opacity 0.2s ease;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .admin-wrapper { flex-direction: column; }
@@ -437,8 +464,8 @@ select.form-control {
                 </a>
             </li>
             <li>
-                <a href="<?= route_url('/admin/orders.php') ?>"<?= strpos($_SERVER['PHP_SELF'] ?? '', 'orders.php') !== false || strpos($_SERVER['PHP_SELF'] ?? '', 'order_view.php') !== false ? ' class="active"' : '' ?>>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2l3 6"></path><path d="M18 2l-3 6"></path><path d="M3 10h18"></path><path d="M4 10l1 10h14l1-10"></path></svg>
+                <a href="<?= route_url('/admin/orders.php') ?>">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
                     Đơn hàng
                 </a>
             </li>
@@ -476,16 +503,9 @@ select.form-control {
     </aside>
 
     <main class="admin-main">
-        <div class="admin-header">
-            <h1>Loại sản phẩm theo danh mục</h1>
-        </div>
+        
 
-        <?php if ($error !== ''): ?>
-            <div class="alert error">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                <div><?= e($error) ?></div>
-            </div>
-        <?php endif; ?>
+       
 
         <div class="category-layout">
             <div class="admin-card">
@@ -494,8 +514,8 @@ select.form-control {
                     
                     <div class="form-group">
                         <label>Danh mục gốc <span class="required-mark">*</span></label>
-                        <select name="category_id" class="form-control" required>
-                            <option value="">-- Chọn danh mục --</option>
+                        <select name="category_id" id="categorySelect" class="form-control" required>
+                            <option value="">-- Tất cả danh mục --</option>
                             <?php foreach ($categories as $category): ?>
                                 <option value="<?= (int)$category['id'] ?>"><?= e($category['name']) ?></option>
                             <?php endforeach; ?>
@@ -509,7 +529,7 @@ select.form-control {
 
                     <div class="form-group">
                         <label>Thứ tự hiển thị <span style="font-weight: 400; color: var(--admin-text-muted);">(Tùy chọn)</span></label>
-                        <input type="number" name="sort_order" class="form-control" value="0" placeholder="0">
+                        <input type="number" name="sort_order" class="form-control" value="" placeholder="Để trống = Tự động xếp cuối">
                     </div>
 
                     <button class="btn-submit" type="submit">
@@ -522,10 +542,18 @@ select.form-control {
                 <h3>Danh sách đã phân loại</h3>
                 <div class="table-responsive">
                     <table class="admin-table">
-
-                        <tbody>
-                        <?php if (empty($productTypes)): ?>
+                        <thead>
                             <tr>
+                                <th>Danh mục</th>
+                                <th>Loại sản phẩm</th>
+                                <th>Đường dẫn (Slug)</th>
+                                <th style="text-align: center;">Thứ tự</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="typeTableBody">
+                        <?php if (empty($productTypes)): ?>
+                            <tr id="emptyOverallRow">
                                 <td colspan="5" style="text-align: center; padding: 40px 20px; color: var(--admin-text-muted);">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 12px; color: #9ca3af;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
                                     <br>Chưa có loại sản phẩm nào. Hãy thêm mới ở form bên cạnh!
@@ -533,8 +561,15 @@ select.form-control {
                             </tr>
                         <?php endif; ?>
 
+                        <tr id="emptyFilterRow" style="display: none;">
+                            <td colspan="5" style="text-align: center; padding: 40px 20px; color: var(--admin-text-muted);">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 12px; color: #9ca3af;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                <br>Không có loại sản phẩm nào thuộc danh mục này.
+                            </td>
+                        </tr>
+
                         <?php foreach ($productTypes as $type): ?>
-                            <tr>
+                            <tr class="type-row" data-category-id="<?= (int)$type['category_id'] ?>">
                                 <td>
                                     <span class="badge-category-parent">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
@@ -565,3 +600,40 @@ select.form-control {
     </main>
 </div>
 
+<script>
+// ==========================================
+// TÍNH NĂNG LỌC DANH SÁCH AUTO KHI CHỌN DANH MỤC
+// ==========================================
+document.addEventListener('DOMContentLoaded', function() {
+    const categorySelect = document.getElementById('categorySelect');
+    const typeRows = document.querySelectorAll('.type-row');
+    const emptyFilterRow = document.getElementById('emptyFilterRow');
+    const emptyOverallRow = document.getElementById('emptyOverallRow');
+
+    categorySelect.addEventListener('change', function() {
+        const selectedId = this.value;
+        let visibleCount = 0;
+
+        typeRows.forEach(row => {
+            const rowCategoryId = row.getAttribute('data-category-id');
+            // Nếu chưa chọn danh mục (value rỗng) hoặc danh mục khớp -> Hiển thị
+            if (selectedId === '' || rowCategoryId === selectedId) {
+                row.style.display = '';
+                visibleCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        // Xử lý hiển thị thông báo "Không có dữ liệu"
+        if (emptyFilterRow) {
+            // Chỉ hiện thông báo filter rỗng nếu bảng tổng vốn dĩ CÓ dữ liệu nhưng bị lọc mất hết
+            if (typeRows.length > 0 && visibleCount === 0) {
+                emptyFilterRow.style.display = '';
+            } else {
+                emptyFilterRow.style.display = 'none';
+            }
+        }
+    });
+});
+</script>

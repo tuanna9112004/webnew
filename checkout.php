@@ -86,7 +86,6 @@ require_once __DIR__ . '/includes/header.php';
 .form-textarea { resize: vertical; min-height: 70px; }
 .required-star { color: #ef4444; margin-left: 2px; }
 
-/* CSS cho Select */
 select.form-select { cursor: pointer; appearance: auto; -webkit-appearance: auto; }
 
 .inline-radio { display: flex; flex-direction: row; gap: 8px; }
@@ -122,6 +121,11 @@ select.form-select { cursor: pointer; appearance: auto; -webkit-appearance: auto
 .mt-24 { margin-top: 20px; }
 .mb-0 { margin-bottom: 0 !important; }
 .link-muted { color: #2563eb; text-decoration: underline; }
+
+/* Nút Nhờ nhận hộ */
+.toggle-receiver-label { display: inline-flex; align-items: center; gap: 8px; padding: 12px 14px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; color: #334155; transition: all 0.2s; user-select: none; }
+.toggle-receiver-label:hover { background: #e2e8f0; }
+.toggle-receiver-label input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: #0f172a; margin: 0;}
 
 @media (min-width: 768px) {
     .checkout-shell { padding: 32px 16px; }
@@ -174,12 +178,12 @@ select.form-select { cursor: pointer; appearance: auto; -webkit-appearance: auto
 
                 <div class="form-grid col-2 mt-24">
                     <div class="form-group">
-                        <label class="form-label">Họ và tên <span class="required-star">*</span></label>
-                        <input class="form-control" name="contact_name" placeholder="Họ tên" value="<?= e(old_input('contact_name', $customer['full_name'] ?? '')) ?>" required>
+                        <label class="form-label">Họ và tên người mua <span class="required-star">*</span></label>
+                        <input class="form-control" name="contact_name" id="contact_name" placeholder="Họ tên" value="<?= e(old_input('contact_name', $customer['full_name'] ?? '')) ?>" required>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Số điện thoại <span class="required-star">*</span></label>
-                        <input class="form-control" name="contact_phone" placeholder="SĐT" value="<?= e(old_input('contact_phone', $customer['phone'] ?? '')) ?>" required>
+                        <input class="form-control" name="contact_phone" id="contact_phone" placeholder="SĐT" value="<?= e(old_input('contact_phone', $customer['phone'] ?? '')) ?>" required>
                     </div>
                     <div class="form-group full-width">
                         <label class="form-label">Email (Không bắt buộc)</label>
@@ -211,13 +215,25 @@ select.form-select { cursor: pointer; appearance: auto; -webkit-appearance: auto
                 <?php endif; ?>
 
                 <div class="form-grid col-2 mt-24">
-                    <div class="form-group">
-                        <label class="form-label">Người nhận</label>
-                        <input class="form-control" name="receiver_name" id="f_receiver_name" placeholder="Nhập tên người nhận..." value="<?= e(old_input('receiver_name')) ?>">
+                    
+                    <div class="form-group full-width" style="margin-bottom: 8px;">
+                        <label class="toggle-receiver-label">
+                            <input type="checkbox" id="toggleReceiverCheckbox"> 
+                            🎁 Nhờ người khác nhận hộ (Nhập Tên và SĐT người nhận)
+                        </label>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">SĐT nhận</label>
-                        <input class="form-control" name="receiver_phone" id="f_receiver_phone" placeholder="Nhập SĐT..." value="<?= e(old_input('receiver_phone')) ?>">
+
+                    <div id="receiverInfoWrapper" style="display: none; grid-column: 1 / -1; background: #f8fafc; padding: 16px; border: 1px dashed #cbd5e1; border-radius: 8px; margin-bottom: 12px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <div class="form-group">
+                                <label class="form-label">Tên người nhận</label>
+                                <input class="form-control" name="receiver_name" id="f_receiver_name" placeholder="Nhập tên người nhận..." value="<?= e(old_input('receiver_name')) ?>">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">SĐT nhận</label>
+                                <input class="form-control" name="receiver_phone" id="f_receiver_phone" placeholder="Nhập SĐT..." value="<?= e(old_input('receiver_phone')) ?>">
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="form-group full-width">
@@ -340,6 +356,30 @@ $(document).ready(function() {
     const oldDist = <?= json_encode(old_input('district_name')) ?>;
     const oldWard = <?= json_encode(old_input('ward_name')) ?>;
 
+    // --- LOGIC: NHỜ NGƯỜI KHÁC NHẬN HỘ ---
+    const checkboxToggle = $('#toggleReceiverCheckbox');
+    const receiverWrapper = $('#receiverInfoWrapper');
+    const fReceiverName = $('#f_receiver_name');
+    const fReceiverPhone = $('#f_receiver_phone');
+    const contactName = $('#contact_name');
+    const contactPhone = $('#contact_phone');
+
+    // Nếu lúc load trang (hoặc load lại do validation lỗi) mà 2 ô này có dữ liệu khác rỗng, thì mở sẵn checkbox
+    if (fReceiverName.val().trim() !== '' && fReceiverName.val() !== contactName.val()) {
+        checkboxToggle.prop('checked', true);
+        receiverWrapper.show();
+    }
+
+    checkboxToggle.change(function() {
+        if ($(this).is(':checked')) {
+            receiverWrapper.slideDown(200);
+            fReceiverName.focus();
+        } else {
+            receiverWrapper.slideUp(200);
+            // Khi tắt, có thể clear dữ liệu đi hoặc để nguyên kệ khách
+        }
+    });
+
     // 1. Tải danh sách 63 Tỉnh/Thành khi trang vừa mở
     $.getJSON('https://esgoo.net/api-tinhthanh/1/0.htm', function(data_tinh) {
         if (data_tinh.error === 0) {
@@ -370,7 +410,6 @@ $(document).ready(function() {
         loadWards(idquan);
     });
 
-    // Hàm tải danh sách Quận/Huyện
     function loadDistricts(provinceId, districtToSelect = '', wardToSelect = '') {
         $("#f_district_name").html('<option value="">-- Đang tải... --</option>');
         $("#f_ward_name").html('<option value="">-- Chọn Phường / Xã --</option>');
@@ -396,7 +435,6 @@ $(document).ready(function() {
         }
     }
 
-    // Hàm tải danh sách Phường/Xã
     function loadWards(districtId, wardToSelect = '') {
         $("#f_ward_name").html('<option value="">-- Đang tải... --</option>');
         
@@ -419,7 +457,6 @@ $(document).ready(function() {
         }
     }
 
-    // Hàm tự động đối chiếu và chọn Option (Giải quyết việc chênh lệch tên API và Database)
     function matchAndSelect($select, text) {
         if (!text) return;
         const search = text.toLowerCase().replace(/^(thành phố|tỉnh|quận|huyện|thị xã|phường|xã|thị trấn)\s+/i, '').trim();
@@ -430,41 +467,40 @@ $(document).ready(function() {
             if (optText === search || $(this).val() === text) {
                 $(this).prop('selected', true);
                 matched = true;
-                return false; // Break khỏi vòng lặp each
+                return false; 
             }
         });
 
-        // Nếu DB có mà API không có (Ví dụ Tỉnh bị đổi tên), ép tạo 1 option mới để không bị lỗi trống
         if (!matched) {
-            const newOpt = $('<option>', {
-                value: text,
-                text: text,
-                'data-id': 'custom'
-            });
+            const newOpt = $('<option>', { value: text, text: text, 'data-id': 'custom' });
             $select.append(newOpt);
             newOpt.prop('selected', true);
         }
     }
 
-    // === HÀM XỬ LÝ CHÍNH: ĐỔ DỮ LIỆU ĐỊA CHỈ ĐÃ LƯU ===
+    // === ĐỔ DỮ LIỆU ĐỊA CHỈ ĐÃ LƯU ===
     function applyAddressData() {
         const source = $('input[name="address_source"]:checked').val();
         
         if (source === 'saved') {
             $('#savedAddressContainer').show();
-            // Lấy ID địa chỉ từ Dropdown
             const selectedId = parseInt($('#savedAddressSelect').val(), 10);
             
             if (customerAddresses.length > 0) {
-                // FIX LỖI: So sánh ép kiểu Int vì PHP trả JSON ID dạng String ("1")
                 const addr = customerAddresses.find(a => parseInt(a.id, 10) === selectedId);
                 
                 if (addr) {
-                    $('#f_receiver_name').val(addr.receiver_name || '');
-                    $('#f_receiver_phone').val(addr.receiver_phone || '');
+                    // Nếu tên/sđt lưu trong Address KHÁC với thông tin mua hàng -> Bật toggle Nhờ nhận hộ
+                    if (addr.receiver_name && addr.receiver_name !== contactName.val()) {
+                        checkboxToggle.prop('checked', true).trigger('change');
+                    } else {
+                        checkboxToggle.prop('checked', false).trigger('change');
+                    }
+
+                    fReceiverName.val(addr.receiver_name || '');
+                    fReceiverPhone.val(addr.receiver_phone || '');
                     $('#f_address_line').val(addr.address_line || '');
                     
-                    // Bắt đầu chuỗi đổ Tỉnh -> Quận -> Xã
                     if (addr.province_name) {
                         matchAndSelect($('#f_province_name'), addr.province_name);
                         const pId = $('#f_province_name').find(':selected').data('id');
@@ -476,24 +512,31 @@ $(document).ready(function() {
             }
         } else if (source === 'manual') {
             $('#savedAddressContainer').hide();
-            $('#f_receiver_name').val('');
-            $('#f_receiver_phone').val('');
+            fReceiverName.val('');
+            fReceiverPhone.val('');
+            checkboxToggle.prop('checked', false).trigger('change'); // Tắt Nhờ nhận hộ
             $('#f_address_line').val('');
             $('#f_province_name').val('').trigger('change');
         }
     }
 
-    // Lắng nghe thay đổi khi bấm Radio Button hoặc chọn Địa chỉ khác
     $('input[name="address_source"]').change(applyAddressData);
     $('#savedAddressSelect').change(applyAddressData);
 
-    // Chặn lỗi: Nếu người dùng quên nhập Tên/SĐT thì tự động chép từ tài khoản
+    // Chặn lỗi: Trước khi Submit form
     $('#checkoutForm').submit(function() {
-        if (!$('#f_receiver_name').val().trim()) {
-            $('#f_receiver_name').val($('input[name="contact_name"]').val().trim());
-        }
-        if (!$('#f_receiver_phone').val().trim()) {
-            $('#f_receiver_phone').val($('input[name="contact_phone"]').val().trim());
+        // Nếu KHÔNG tick Nhờ nhận hộ -> copy luôn Tên/SĐT mua hàng sang nhận hàng
+        if (!checkboxToggle.is(':checked')) {
+            fReceiverName.val(contactName.val().trim());
+            fReceiverPhone.val(contactPhone.val().trim());
+        } else {
+            // Nếu TICK Nhờ nhận hộ, nhưng cố tình để trống -> Dùng fallback lấy thông tin mua hàng
+            if (!fReceiverName.val().trim()) {
+                fReceiverName.val(contactName.val().trim());
+            }
+            if (!fReceiverPhone.val().trim()) {
+                fReceiverPhone.val(contactPhone.val().trim());
+            }
         }
     });
 });

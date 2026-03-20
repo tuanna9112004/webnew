@@ -32,11 +32,45 @@ if (!$missing && is_post()) {
             header('Location: ' . route_url('/cart.php'));
             exit;
         }
+
+        // --- BẮT ĐẦU LOGIC CẬP NHẬT BIẾN THỂ TRỰC TIẾP ---
+        $currentCart = get_current_cart(false);
+        $currentTotals = $currentCart ? get_cart_totals((int)$currentCart['id']) : null;
+        $currentItems = $currentTotals ? $currentTotals['items'] : [];
+
+        foreach ((array)($_POST['variants'] ?? []) as $itemId => $newVariantId) {
+            $itemId = (int)$itemId;
+            $newVariantId = (int)$newVariantId;
+            
+            $matchedItem = null;
+            foreach ($currentItems as $it) {
+                if ($it['id'] == $itemId) {
+                    $matchedItem = $it;
+                    break;
+                }
+            }
+
+            // Nếu người dùng chọn biến thể mới khác với biến thể đang có trong giỏ
+            if ($matchedItem && $matchedItem['variant_id'] != $newVariantId) {
+                // Lấy số lượng mới nhất người dùng vừa nhập (nếu có), nếu không thì dùng số lượng cũ
+                $qty = (int)($_POST['quantities'][$itemId] ?? $matchedItem['quantity']);
+                
+                // Mẹo: Xóa item cũ và thêm item mới bằng hàm hệ thống (để kích hoạt tự động gộp trùng nếu cần)
+                remove_cart_item($itemId);
+                add_item_to_cart((int)$matchedItem['product_id'], $newVariantId, $qty);
+                
+                // Hủy biến $_POST quantities của item cũ này để vòng lặp cập nhật số lượng bên dưới bỏ qua nó
+                unset($_POST['quantities'][$itemId]); 
+            }
+        }
+        // --- KẾT THÚC LOGIC CẬP NHẬT BIẾN THỂ ---
+
+        // Cập nhật số lượng cho các sản phẩm còn lại
         foreach ((array)($_POST['quantities'] ?? []) as $itemId => $qty) {
             update_cart_item_quantity((int)$itemId, (int)$qty);
         }
         
-        // Kiểm tra nếu là request từ JS ngầm thì không redirect, để cho PHP tiếp tục chạy xuống dưới render HTML mới
+        // Kiểm tra nếu là request từ JS ngầm thì không redirect
         if (isset($_POST['is_ajax']) && $_POST['is_ajax'] === '1') {
             // Bypass redirect
         } else {
@@ -97,6 +131,11 @@ require_once __DIR__ . '/includes/header.php';
                     <input type="hidden" name="cart_action" value="update">
                     <div class="cart-list">
                         <?php foreach ($items as $item): ?>
+                            <?php 
+                                // Lấy tất cả biến thể của sản phẩm này để hiển thị trong dropdown
+                                $productVariants = get_product_variants((int)$item['product_id']);
+                                $hasMultipleVariants = !empty($productVariants) && count($productVariants) > 1;
+                            ?>
                             <div class="cart-item-card">
                                 <div class="cart-item-media">
                                     <img src="<?= e(resolve_media_url($item['effective_image'] ?: $item['thumbnail'])) ?>" alt="<?= e($item['product_name']) ?>">
@@ -104,12 +143,34 @@ require_once __DIR__ . '/includes/header.php';
                                 <div class="cart-item-main">
                                     <div class="cart-item-title"><?= e($item['product_name']) ?></div>
                                     <div class="cart-item-meta">Mã: <?= e($item['product_code']) ?></div>
-                                    <div class="cart-item-meta">Phân loại: <?= e(build_variant_label([
-                                        'variant_name' => $item['variant_name'],
-                                        'size_value' => $item['size_value'],
-                                        'color_value' => $item['color_value'],
-                                    ])) ?></div>
-                                    <div class="cart-item-price"><?= format_price($item['unit_price_snapshot']) ?></div>
+                                    
+                                    <?php if ($hasMultipleVariants): ?>
+                                        <div class="cart-item-meta" style="margin-top: 6px;">
+                                            <label style="font-size: 12px; font-weight: 600; color: #4b5563; display: block; margin-bottom: 4px;">Phân loại:</label>
+                                            <select name="variants[<?= (int)$item['id'] ?>]" class="form-control cart-variant-select" style="font-size: 13px; padding: 4px 8px; height: auto; border-radius: 6px; width: 100%; max-width: 200px;">
+                                                <?php foreach ($productVariants as $v): ?>
+                                                    <?php 
+                                                        $vLabel = build_variant_label([
+                                                            'variant_name' => $v['variant_name'] ?? null,
+                                                            'size_value' => $v['size_value'] ?? null,
+                                                            'color_value' => $v['color_value'] ?? null,
+                                                        ]) ?: 'Mặc định';
+                                                    ?>
+                                                    <option value="<?= (int)$v['id'] ?>" <?= $item['variant_id'] == $v['id'] ? 'selected' : '' ?>>
+                                                        <?= e($vLabel) ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+                                    <?php else: ?>
+                                        <div class="cart-item-meta">Phân loại: <?= e(build_variant_label([
+                                            'variant_name' => $item['variant_name'],
+                                            'size_value' => $item['size_value'],
+                                            'color_value' => $item['color_value'],
+                                        ]) ?: 'Mặc định') ?></div>
+                                    <?php endif; ?>
+
+                                    <div class="cart-item-price" style="margin-top: 6px;"><?= format_price($item['unit_price_snapshot']) ?></div>
                                 </div>
                                 <div class="cart-item-side">
                                     <label class="form-label" style="margin-bottom:6px;">Số lượng</label>
@@ -158,14 +219,15 @@ require_once __DIR__ . '/includes/header.php';
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Sử dụng event delegation để bắt sự kiện thay đổi số lượng, 
-    // đảm bảo JS vẫn hoạt động tốt kể cả khi HTML bên trong được tải lại
+    // Lắng nghe cả sự kiện đổi số lượng VÀ đổi dropdown biến thể
     document.body.addEventListener('change', function(e) {
-        if (e.target.classList.contains('cart-qty-input')) {
+        if (e.target.classList.contains('cart-qty-input') || e.target.classList.contains('cart-variant-select')) {
             const input = e.target;
             
             // Không cho phép số lượng nhỏ hơn 1
-            if (input.value < 1) input.value = 1;
+            if (input.classList.contains('cart-qty-input') && input.value < 1) {
+                input.value = 1;
+            }
 
             const form = input.closest('form');
             const formData = new FormData(form);
@@ -194,7 +256,6 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(err => {
                 console.error('Lỗi khi cập nhật giỏ hàng:', err);
-                // Fallback: nếu lỗi JS thì reload lại để update bình thường
                 window.location.reload(); 
             })
             .finally(() => {

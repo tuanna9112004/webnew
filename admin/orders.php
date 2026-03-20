@@ -4,12 +4,45 @@ admin_require_login();
 
 $pageTitle = 'Quản lý đơn hàng';
 $missing = require_upgrade_tables(['orders', 'order_items', 'order_addresses']);
+
+// Lấy tham số tìm kiếm
 $status = trim((string)($_GET['status'] ?? ''));
 $paymentStatus = trim((string)($_GET['payment_status'] ?? ''));
 $q = trim((string)($_GET['q'] ?? ''));
 
-// Lấy danh sách đơn hàng từ DB
+// Kiểm tra xem có đang ở chế độ xem tất cả không
+$viewAll = isset($_GET['view_all']) && $_GET['view_all'] == 1;
+
+// Xác định nếu đây là lần truy cập mặc định (không có bộ lọc nào) và không bấm "Xem tất cả"
+$isDefaultFilter = empty($status) && empty($paymentStatus) && empty($q) && !$viewAll;
+
+// Lấy toàn bộ danh sách đơn hàng từ DB theo bộ lọc cơ bản (Nếu có)
 $orders = $missing ? [] : admin_get_orders(['status' => $status, 'payment_status' => $paymentStatus, 'q' => $q]);
+
+// =========================================================================
+// XỬ LÝ LỌC MẶC ĐỊNH (CHỈ HIỂN THỊ ĐƠN CẦN XỬ LÝ)
+// =========================================================================
+if ($isDefaultFilter && !empty($orders)) {
+    $filteredOrders = [];
+    foreach ($orders as $order) {
+        $os = $order['order_status'] ?? '';
+        $ps = $order['payment_status'] ?? '';
+        
+        // CÁC TRƯỜNG HỢP BỊ LOẠI BỎ KHỎI MẶC ĐỊNH:
+        // 1. Đơn đã hoàn thành (Giao xong)
+        // 2. Đơn đã hủy
+        // 3. Đơn trả hàng
+        // 4. Đơn chưa thanh toán VÀ Đang chờ xác nhận (Mới tạo, khách chưa chuyển khoản xong)
+        $isCompletedOrCancelled = in_array($os, ['da_giao', 'da_huy', 'tra_hang']);
+        $isNewUnpaid = ($ps === 'chua_thanh_toan' && $os === 'cho_xac_nhan');
+        
+        // Nếu không thuộc các trường hợp bị loại bỏ -> Đưa vào danh sách cần xử lý
+        if (!$isCompletedOrCancelled && !$isNewUnpaid) {
+            $filteredOrders[] = $order;
+        }
+    }
+    $orders = $filteredOrders;
+}
 
 // =========================================================================
 // THUẬT TOÁN SẮP XẾP ƯU TIÊN THÔNG MINH (SMART SORTING)
@@ -133,7 +166,7 @@ $paymentMap = payment_status_options();
         .filter-control { padding: 10px 14px; border: 1px solid var(--admin-border); border-radius: 8px; font-size: 14px; background: #fff; outline: none; transition: all 0.2s ease; font-family: 'Inter', sans-serif; width: 100%; box-sizing: border-box; }
         .filter-control:focus { border-color: var(--admin-primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
         .filter-actions { display: flex; gap: 12px; flex: 1; min-width: 180px; }
-        .btn { padding: 10px 20px; height: 42px; font-size: 14px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; box-sizing: border-box; }
+        .btn { padding: 10px 20px; height: 42px; font-size: 14px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; box-sizing: border-box; white-space: nowrap; }
         .btn-search { background: var(--admin-text-main); color: #fff; }
         .btn-search:hover { background: #374151; }
         .btn-reset { background: #e5e7eb; color: var(--admin-text-main); }
@@ -191,6 +224,7 @@ $paymentMap = payment_status_options();
             .admin-main { max-width: 100%; padding: 16px; }
             .admin-header { flex-direction: column; align-items: flex-start; gap: 16px; }
             .filter-actions, .filter-actions .btn { width: 100%; }
+            .filter-actions { flex-wrap: wrap; }
         }
     </style>
 </head>
@@ -229,6 +263,13 @@ $paymentMap = payment_status_options();
                 <div style="background-color: var(--admin-danger-bg); color: var(--admin-danger); padding: 16px; border-radius: 8px; margin-bottom: 24px; border: 1px solid var(--admin-danger-border);">
                     <?= e($_SESSION['error_msg']) ?>
                     <?php unset($_SESSION['error_msg']); ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($isDefaultFilter): ?>
+                <div style="background-color: #eff6ff; color: #1e40af; padding: 12px 16px; border-radius: 8px; margin-bottom: 24px; border: 1px solid #bfdbfe; font-size: 14px; display: flex; gap: 8px; align-items: flex-start;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    <div>Hệ thống đang chỉ hiển thị <strong>các đơn hàng CẦN XỬ LÝ ƯU TIÊN</strong> (Đã ẩn các đơn Hoàn thành, Đã hủy, Trả hàng, hoặc Đơn chưa chuyển khoản). Bạn có thể bấm <a href="?view_all=1" style="color: var(--admin-primary); font-weight: 700;">Hiển thị tất cả</a>.</div>
                 </div>
             <?php endif; ?>
 
@@ -286,6 +327,9 @@ $paymentMap = payment_status_options();
                         <div class="filter-actions">
                             <button class="btn btn-search" type="submit">Tìm kiếm</button>
                             <a href="<?= route_url('/admin/orders.php') ?>" class="btn btn-reset">Xóa lọc</a>
+                            <?php if ($isDefaultFilter): ?>
+                                <a href="?view_all=1" class="btn" style="background: #eef2ff; color: var(--admin-primary); border: 1px solid #c7d2fe;">Hiện tất cả</a>
+                            <?php endif; ?>
                         </div>
                     </form>
                 </div>
@@ -309,7 +353,7 @@ $paymentMap = payment_status_options();
                             <tr>
                                 <td colspan="8" style="text-align: center; padding: 60px 20px; color: var(--admin-text-muted);">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px; color: #9ca3af;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                                    <br>Không tìm thấy đơn hàng nào.
+                                    <br>Không tìm thấy đơn hàng nào cần xử lý.
                                 </td>
                             </tr>
                         <?php else: ?>
@@ -362,12 +406,13 @@ $paymentMap = payment_status_options();
 // ==========================================
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('filterForm');
-    const autoSubmitSelects = document.querySelectorAll('.auto-submit');
-
-    autoSubmitSelects.forEach(select => {
-        select.addEventListener('change', () => { showLoading(); form.submit(); });
-    });
-    form.addEventListener('submit', showLoading);
+    if (form) {
+        const autoSubmitSelects = document.querySelectorAll('.auto-submit');
+        autoSubmitSelects.forEach(select => {
+            select.addEventListener('change', () => { showLoading(); form.submit(); });
+        });
+        form.addEventListener('submit', showLoading);
+    }
 });
 
 function showLoading() {

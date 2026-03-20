@@ -73,7 +73,7 @@ function render_product_cards(array $products): string
 
                     <div class="card-actions">
                         <a class="btn btn-light" href="<?= $productUrl ?>">Chi tiết</a>
-                        <a class="btn btn-zalo" target="_blank" href="<?= e(shop_zalo_link()) ?>">Mua ngay qua Zalo</a>
+                        <a class="btn btn-buy-now" href="<?= $productUrl ?>">Mua ngay</a>
                     </div>
                 </div>
             </div>
@@ -174,9 +174,9 @@ $showPopup = !$isFiltering;
 :root {
     --primary-color: #111;
     --primary-hover: #333;
-    --danger-color: #e53935;
+    --danger-color: #e5003f; /* Đỏ nổi bật hơn cho giá giảm */
     --text-main: #1a1a24;
-    --text-muted: #8e8e9f;
+    --text-muted: #666; /* Đậm hơn một chút để dễ đọc mô tả */
     --radius-pill: 50px;
     --radius-md: 16px;
     --z-index-modal: 9999;
@@ -284,7 +284,7 @@ body.popup-open {
 }
 
 .popup-close-btn:hover {
-    background: var(--danger-color);
+    background: var(--primary-color);
     color: #fff;
     transform: rotate(90deg);
 }
@@ -480,7 +480,7 @@ body.popup-open {
     position: absolute;
     top: 16px;
     left: 16px;
-    background: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     padding: 6px 14px;
@@ -494,18 +494,18 @@ body.popup-open {
     letter-spacing: 0.5px;
 }
 
-/* CSS CHO NHÃN GIẢM GIÁ (SALE BADGE) MỚI */
+/* CSS CHO NHÃN GIẢM GIÁ (SALE BADGE) NỔI BẬT */
 .discount-badge {
     position: absolute;
     top: 16px;
     right: 16px;
-    background: linear-gradient(135deg, #ff3366 0%, #e5003f 100%);
+    background: var(--danger-color);
     color: #ffffff;
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 13px;
     font-weight: 900;
-    box-shadow: 0 4px 12px rgba(229, 0, 63, 0.3);
+    box-shadow: 0 4px 12px rgba(229, 0, 63, 0.4);
     z-index: 2;
     letter-spacing: 0.5px;
     transform: translateY(0);
@@ -533,7 +533,7 @@ body.popup-open {
     align-items: center;
     gap: 6px;
     font-size: 12px;
-    color: var(--text-muted);
+    color: #888;
     margin-bottom: 10px;
     font-weight: 600;
     text-transform: uppercase;
@@ -542,7 +542,7 @@ body.popup-open {
 
 .meta-dot {
     font-size: 14px;
-    color: #ccc;
+    color: #ddd;
 }
 
 .product-title {
@@ -566,13 +566,14 @@ body.popup-open {
     color: var(--danger-color);
 }
 
+/* CSS CHO MÔ TẢ NGẮN (SHORT DESC) */
 .product-short-desc {
     font-size: 13.5px;
     color: var(--text-muted);
     line-height: 1.6;
     margin-bottom: 12px;
     display: -webkit-box;
-    -webkit-line-clamp: 2; 
+    -webkit-line-clamp: 2; /* Chỉ hiển thị 2 dòng */
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -594,24 +595,26 @@ body.popup-open {
     padding-top: 20px;
 }
 
+/* CSS CHO GIÁ BÁN NỔI BẬT */
 .price-stack {
     display: flex;
-    align-items: baseline;
-    gap: 12px;
+    align-items: center; /* Đổi về center để giá gốc nằm cân đối với giá bán */
+    gap: 10px;
     margin-bottom: 18px;
+    flex-wrap: wrap;
 }
 
 .price {
-    font-size: 22px;
+    font-size: 24px; /* Tăng kích thước giá bán */
     font-weight: 900;
-    color: var(--danger-color);
+    color: var(--danger-color); /* Màu đỏ nổi bật */
     letter-spacing: -0.5px;
 }
 
 .price-old {
-    font-size: 14px;
+    font-size: 15px;
     text-decoration: line-through;
-    color: #aaa;
+    color: #a0a0a0;
     font-weight: 500;
 }
 
@@ -641,15 +644,18 @@ body.popup-open {
     transform: translateY(-2px);
 }
 
-.btn-zalo {
-    background: linear-gradient(135deg, #0068ff 0%, #0052cc 100%);
-    color: #fff;
-    box-shadow: 0 4px 15px rgba(0,104,255,0.2);
+/* NÚT MUA NGAY (Thay thế Zalo) */
+.btn-buy-now {
+    background: var(--primary-color);
+    color: #ffffff;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
 }
 
-.btn-zalo:hover {
+.btn-buy-now:hover {
+    background: var(--danger-color);
+    color: #ffffff;
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0,104,255,0.4);
+    box-shadow: 0 8px 20px rgba(229, 0, 63, 0.3);
 }
 
 /* =========================================================
@@ -785,7 +791,7 @@ body.popup-open {
         padding: 4px 8px;
         top: 10px;
         right: 10px;
-        border-radius: 12px;
+        border-radius: 8px;
     }
 
     .product-top {
@@ -822,13 +828,13 @@ body.popup-open {
     .price-stack {
         flex-direction: row;
         flex-wrap: wrap;
-        align-items: baseline;
+        align-items: center;
         gap: 6px;
         margin-bottom: 12px;
     }
 
     .price {
-        font-size: 16px;
+        font-size: 18px; /* Trên mobile giá bé lại chút cho cân đối */
     }
 
     .price-old {
@@ -1278,17 +1284,8 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Chỉ hiện tự động nếu PHP cờ $showPopup = true
-    
-<?php
-$tiktokLink = function_exists('shop_social_link') ? shop_social_link('tiktok') : '#';
-$facebookLink = function_exists('shop_social_link') ? shop_social_link('facebook') : '#';
-$instagramLink = function_exists('shop_social_link') ? shop_social_link('instagram') : '#';
-$zaloGroupLink = function_exists('shop_social_link') ? shop_social_link('zalo_group') : '#';
-$shopNameDynamic = function_exists('shop_name') ? shop_name() : 'Duong Mot Mi SHOP';
-?>
-
-<?php if ($showPopup): ?>
+    // Chỉ hiện tự động nếu PHP cờ $showPopup = true (đã được dọn dẹp để fix lỗi cú pháp PHP của bạn)
+    <?php if ($showPopup): ?>
         const schedulePopup = () => {
             setTimeout(() => {
                 if (!document.hidden) {

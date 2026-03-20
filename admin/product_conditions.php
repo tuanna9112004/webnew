@@ -6,12 +6,26 @@ $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
-    $sort = (int)($_POST['sort_order'] ?? 0);
+    $sortInput = trim($_POST['sort_order'] ?? '');
 
     if ($name !== '') {
+        // Lấy vị trí lớn nhất hiện tại
+        $stmtMax = db()->query('SELECT MAX(sort_order) FROM product_conditions');
+        $maxSort = (int)$stmtMax->fetchColumn();
+
+        if ($sortInput === '') {
+            // 1. Trường hợp để trống: Tự động xếp xuống cuối cùng
+            $sort = $maxSort + 1;
+        } else {
+            // 2. Trường hợp nhập số cụ thể: Chèn vào giữa và đẩy các vị trí cũ xuống
+            $sort = (int)$sortInput;
+            $updateStmt = db()->prepare('UPDATE product_conditions SET sort_order = sort_order + 1 WHERE sort_order >= ?');
+            $updateStmt->execute([$sort]);
+        }
+
+        // Thêm mới tình trạng sản phẩm
         insert_lookup_item('product_conditions', $name, $sort);
     }
-
     redirect('/admin/product_conditions.php');
 }
 
@@ -476,7 +490,7 @@ body {
 
                     <div class="form-group">
                         <label for="sort_order">Thứ tự hiển thị <span style="font-weight: 400; color: var(--admin-text-muted);">(Tùy chọn)</span></label>
-                        <input id="sort_order" type="number" name="sort_order" class="form-control" value="0" placeholder="0">
+                        <input id="sort_order" type="number" name="sort_order" class="form-control" value="" placeholder="Để trống = Tự động xếp cuối">
                     </div>
 
                     <button class="btn-submit" type="submit">Lưu tình trạng</button>

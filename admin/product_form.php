@@ -212,8 +212,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'style_id' => ($_POST['style_id'] ?? '') !== '' ? (int)$_POST['style_id'] : null,
         'gender' => in_array($postedGender, $genderOptions, true) ? $postedGender : 'Nam',
         'original_price' => $normalizePriceInput($_POST['original_price'] ?? 0),
-        'sale_price' => $normalizePriceInput($_POST['sale_price'] ?? 0), // Không cho null nữa
-        'purchase_price' => $normalizePriceInput($_POST['purchase_price'] ?? 0), // Không cho null nữa
+        'sale_price' => $normalizePriceInput($_POST['sale_price'] ?? 0),
+        'purchase_price' => $normalizePriceInput($_POST['purchase_price'] ?? 0),
         'note' => trim($_POST['note'] ?? ''),
         'material' => trim($_POST['material'] ?? ''),
         'information' => trim($_POST['information'] ?? ''),
@@ -221,6 +221,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'quantity' => (int)($_POST['quantity'] ?? 0),
         'import_link' => trim($_POST['import_link'] ?? ''),
         'is_active' => isset($_POST['is_active']) ? 1 : 0,
+        // Bổ sung lấy giá trị size và màu từ POST
+        'variant_colors' => trim($_POST['variant_colors'] ?? ''),
+        'variant_sizes' => trim($_POST['variant_sizes'] ?? ''),
     ];
 
     $selectedConditions = array_values(
@@ -253,6 +256,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($_POST['purchase_price'] === '') $errors[] = 'Vui lòng nhập giá nhập từ kho.';
     if ($data['material'] === '') $errors[] = 'Vui lòng nhập chất liệu.';
     if ($data['import_link'] === '') $errors[] = 'Vui lòng nhập link/nguồn nhập hàng.';
+
+    // KIỂM TRA ĐỊNH DẠNG BIẾN THỂ MÀU SẮC VÀ SIZE
+    // Regex cho phép chữ cái tiếng Việt, số, khoảng trắng và các dấu ngăn cách (phẩy, gạch chéo, gạch nối)
+    $variantRegex = '/^[\p{L}0-9\s,\/\-]+$/u';
+    
+    if ($data['variant_colors'] !== '' && !preg_match($variantRegex, $data['variant_colors'])) {
+        $errors[] = 'Màu sắc biến thể không hợp lệ. Vui lòng chỉ dùng chữ cái, số và dấu ngăn cách (, / -). Không nhập ký tự đặc biệt.';
+    }
+    if ($data['variant_sizes'] !== '' && !preg_match($variantRegex, $data['variant_sizes'])) {
+        $errors[] = 'Kích thước biến thể không hợp lệ. Vui lòng chỉ dùng chữ cái, số và dấu ngăn cách (, / -). Không nhập ký tự đặc biệt.';
+    }
 
     if (
         $data['category_id'] > 0 &&
@@ -455,7 +469,6 @@ if ($currentPrimaryImage === '' && !empty($images)) {
     $currentPrimaryImage = 'existing:' . (int)$images[0]['id'];
 }
 
-// require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -568,7 +581,8 @@ select.form-control {
 .existing-gallery-grid { display: flex; flex-wrap: wrap; gap: 16px; }
 .existing-gallery-item { width: 160px; position: relative; border: 1px solid var(--admin-border); border-radius: 10px; overflow: hidden; background: #fff; transition: all 0.2s ease; }
 .existing-gallery-item:hover { border-color: #cbd5e1; box-shadow: var(--admin-shadow-sm); }
-.existing-gallery-item img { width: 100%; height: 160px; object-fit: cover; display: block; border-bottom: 1px solid var(--admin-border); }
+/* FIX hiển thị ảnh */
+.existing-gallery-item img { width: 100%; height: 160px; object-fit: cover; display: block; border-bottom: 1px solid var(--admin-border); background-color: #f3f4f6;}
 .existing-gallery-meta { padding: 12px; background: #f9fafb; display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
 
 .thumb-badge { background: var(--admin-primary); color: #fff; font-size: 11px; padding: 4px 8px; border-radius: 4px; font-weight: 600; align-self: flex-start; margin-bottom: 4px; }
@@ -608,7 +622,7 @@ select.form-control {
     <aside class="admin-sidebar">
         <div class="sidebar-header">
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--admin-primary)"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
-            <h2>Luxury Admin</h2>
+            <h2>Quản lý</h2>
         </div>
         <ul class="sidebar-menu">
             <li>
@@ -665,7 +679,7 @@ select.form-control {
         <?php if ($isEdit): ?>
             <div class="alert" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;">
                 Sản phẩm có nhiều màu / size? Hãy quản lý biến thể riêng để khách có thể thêm nhiều sản phẩm vào cùng một đơn.
-                <a href="<?= route_url('/admin/product_variants.php') ?>?product_id=<?= (int)$productId ?>" style="font-weight:700;color:#1d4ed8;margin-left:8px;">Mở quản lý biến thể</a> <a href="<?= route_url('/admin/settings.php') ?>" style="font-weight:700;color:#0f766e;margin-left:8px;">Thiết lập website</a>
+                <a href="<?= route_url('/admin/product_variants.php') ?>?product_id=<?= (int)$id ?>" style="font-weight:700;color:#1d4ed8;margin-left:8px;">Mở quản lý biến thể</a> <a href="<?= route_url('/admin/settings.php') ?>" style="font-weight:700;color:#0f766e;margin-left:8px;">Thiết lập website</a>
             </div>
         <?php endif; ?>
 
@@ -779,7 +793,7 @@ select.form-control {
                     <div class="suggestion-chips" data-target="variant_colors">
                         <?php $displaySuggestions('variant_colors'); ?>
                     </div>
-                    <span class="hint">Các giá trị ngăn cách bằng dấu phẩy hoặc dấu / . Khi lưu, hệ thống sẽ tự sinh danh sách màu cho biến thể.</span>
+                    <span class="hint">Chỉ chấp nhận chữ cái, số và dấu phẩy(,) hoặc gạch chéo(/). Không ký tự đặc biệt.</span>
                 </div>
 
                 <div class="form-group">
@@ -788,7 +802,7 @@ select.form-control {
                     <div class="suggestion-chips" data-target="variant_sizes">
                         <?php $displaySuggestions('variant_sizes'); ?>
                     </div>
-                    <span class="hint">Nếu nhập cả màu và size, hệ thống sẽ tự nhân tổ hợp. Ví dụ 4 màu × 3 size = 12 biến thể.</span>
+                    <span class="hint">Chỉ chấp nhận chữ cái, số và dấu phẩy(,) hoặc gạch chéo(/). Không ký tự đặc biệt.</span>
                 </div>
 
                 <div class="form-group">
@@ -870,7 +884,7 @@ select.form-control {
                             <?php foreach ($images as $index => $image): ?>
                                 <?php $existingId = (int)$image['id']; ?>
                                 <div class="existing-gallery-item" data-existing-id="<?= $existingId ?>">
-                                    <img src="<?= e(resolve_media_url($image['image_url'])) ?>" alt="Ảnh SP">
+                                    <img src="<?= e(resolve_media_url($image['image_url'])) ?>" alt="Ảnh SP" onerror="this.src='/assets/default-placeholder.png'">
 
                                     <div class="existing-gallery-meta">
                                         <?php if ($index === 0): ?>
@@ -1451,11 +1465,30 @@ document.addEventListener('DOMContentLoaded', function () {
         galleryInput.addEventListener('change', async function () { await prepareImagesNow(this.files); });
     }
 
-    if (form && galleryInput) {
+    if (form) {
         form.addEventListener('submit', function (e) {
             if (isCompressing || isUploading) {
                 e.preventDefault();
                 setUploadStatus('Ảnh vẫn đang xử lý. Đợi xong rồi bấm Lưu.', 'error');
+                return;
+            }
+            
+            // Validate bổ sung bằng JS cho chắc chắn
+            const colorVal = document.getElementById('variant_colors')?.value || '';
+            const sizeVal = document.getElementById('variant_sizes')?.value || '';
+            const regex = /^[\p{L}0-9\s,\/\-]+$/u;
+            
+            if (colorVal !== '' && !regex.test(colorVal)) {
+                e.preventDefault();
+                alert('Màu sắc biến thể không hợp lệ. Vui lòng chỉ dùng chữ cái, số và dấu ngăn cách (, / -).');
+                document.getElementById('variant_colors').focus();
+                return;
+            }
+            
+            if (sizeVal !== '' && !regex.test(sizeVal)) {
+                e.preventDefault();
+                alert('Kích thước biến thể không hợp lệ. Vui lòng chỉ dùng chữ cái, số và dấu ngăn cách (, / -).');
+                document.getElementById('variant_sizes').focus();
                 return;
             }
 
@@ -1466,14 +1499,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 } catch (error) { return []; }
             })();
 
-            const files = Array.from(galleryInput.files || []);
+            const files = Array.from(galleryInput ? galleryInput.files || [] : []);
             if (!hiddenPaths.length && files.length && window.DataTransfer && compressedFilesCache.length) {
                 const dt = new DataTransfer();
                 compressedFilesCache.forEach(file => dt.items.add(file));
                 galleryInput.files = dt.files;
             }
 
-            if (hiddenPaths.length) galleryInput.disabled = true;
+            if (hiddenPaths.length && galleryInput) galleryInput.disabled = true;
 
             if (submitBtn) {
                 submitBtn.disabled = true;

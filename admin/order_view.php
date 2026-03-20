@@ -16,21 +16,53 @@ $success = '';
 // Xử lý khi Submit Form Cập nhật
 if (is_post()) {
     verify_csrf_or_fail();
-    try {
-        $newOrderStatus = (string)($_POST['order_status'] ?? '');
-        $newPaymentStatus = (string)($_POST['payment_status'] ?? '');
-        $note = trim((string)($_POST['note'] ?? '')) ?: null;
+    $action = $_POST['action'] ?? 'update_status';
 
-        admin_update_order_status($orderId, $newOrderStatus, $note);
+    if ($action === 'update_status') {
+        try {
+            $newOrderStatus = (string)($_POST['order_status'] ?? '');
+            $newPaymentStatus = (string)($_POST['payment_status'] ?? '');
+            $note = trim((string)($_POST['note'] ?? '')) ?: null;
 
-        if ($newPaymentStatus) {
-            admin_update_order_payment_status($orderId, $newPaymentStatus);
+            // Cập nhật trạng thái
+            admin_update_order_status($orderId, $newOrderStatus, $note);
+
+            if ($newPaymentStatus) {
+                admin_update_order_payment_status($orderId, $newPaymentStatus);
+            }
+
+            // Đảm bảo ghi chú nội bộ được lưu trực tiếp vào cột note của bảng orders
+            $stmt = db()->prepare("UPDATE orders SET note = ? WHERE id = ?");
+            $stmt->execute([$note, $orderId]);
+
+            $_SESSION['success_msg'] = "Đã cập nhật đơn hàng thành công!";
+            redirect('/admin/order_view.php?id=' . $orderId);
+        } catch (Throwable $e) {
+            $error = "Lỗi khi cập nhật: " . $e->getMessage();
         }
+    } elseif ($action === 'update_address') {
+        try {
+            $rName = trim($_POST['receiver_name'] ?? '');
+            $rPhone = trim($_POST['receiver_phone'] ?? '');
+            $aLine = trim($_POST['address_line'] ?? '');
+            $wName = trim($_POST['ward_name'] ?? '');
+            $dName = trim($_POST['district_name'] ?? '');
+            $pName = trim($_POST['province_name'] ?? '');
+            $cNote = trim($_POST['customer_note'] ?? ''); // Lấy dữ liệu ghi chú của khách
 
-        $_SESSION['success_msg'] = "Đã cập nhật đơn hàng thành công!";
-        redirect('/admin/order_view.php?id=' . $orderId);
-    } catch (Throwable $e) {
-        $error = "Lỗi khi cập nhật: " . $e->getMessage();
+            // Cập nhật thông tin nhận hàng vào bảng order_addresses
+            $stmt = db()->prepare("UPDATE order_addresses SET receiver_name = ?, receiver_phone = ?, address_line = ?, ward_name = ?, district_name = ?, province_name = ? WHERE order_id = ?");
+            $stmt->execute([$rName, $rPhone, $aLine, $wName, $dName, $pName, $orderId]);
+
+            // Cập nhật customer_note vào bảng orders
+            $stmt2 = db()->prepare("UPDATE orders SET customer_note = ? WHERE id = ?");
+            $stmt2->execute([$cNote, $orderId]);
+
+            $_SESSION['success_msg'] = "Đã cập nhật địa chỉ và ghi chú khách hàng thành công!";
+            redirect('/admin/order_view.php?id=' . $orderId);
+        } catch (Throwable $e) {
+            $error = "Lỗi khi cập nhật địa chỉ: " . $e->getMessage();
+        }
     }
 }
 
@@ -93,7 +125,8 @@ if (isset($order['payment_method']) && strpos(strtolower($order['payment_method'
         .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
         
         .card { background: var(--admin-card); border: 1px solid var(--admin-border); border-radius: var(--admin-radius); padding: 24px; box-shadow: var(--admin-shadow); margin-bottom: 24px; }
-        .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid var(--admin-border); padding-bottom: 12px; }
+        .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; border-bottom: 1px solid var(--admin-border); padding-bottom: 12px; }
+        .card-header-title { display: flex; align-items: center; gap: 10px; }
         .card-header h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--admin-text-main); }
         .card-header svg { color: var(--admin-text-muted); }
 
@@ -109,7 +142,6 @@ if (isset($order['payment_method']) && strpos(strtolower($order['payment_method'
         .item-name { font-weight: 600; color: var(--admin-text-main); display: block; margin-bottom: 4px; }
         .item-code { font-size: 12px; color: var(--admin-text-muted); font-family: monospace; }
         
-        /* CSS CHUYÊN BIỆT CHO HIỂN THỊ BIẾN THỂ */
         .variant-pill { display: inline-block; padding: 3px 8px; background-color: #f1f5f9; color: #475569; font-size: 12px; font-weight: 600; border-radius: 6px; margin-bottom: 6px; border: 1px solid #e2e8f0; }
 
         .status-badge { display: inline-flex; padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 20px; white-space: nowrap; align-items: center; gap: 6px; }
@@ -121,13 +153,13 @@ if (isset($order['payment_method']) && strpos(strtolower($order['payment_method'
         .badge-primary { background: #eef2ff; color: var(--admin-primary); } .badge-primary::before { background-color: var(--admin-primary); }
         .badge-info { background: var(--admin-info-bg); color: var(--admin-info); } .badge-info::before { background-color: var(--admin-info); }
 
-        .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 12px 16px; border-radius: 8px; background: var(--admin-primary); color: #fff; text-decoration: none; border: none; cursor: pointer; font-weight: 600; transition: all 0.2s; font-size: 14px; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: 12px 16px; border-radius: 8px; background: var(--admin-primary); color: #fff; text-decoration: none; border: none; cursor: pointer; font-weight: 600; transition: all 0.2s; font-size: 14px; box-sizing: border-box;}
         .btn:hover { background: var(--admin-primary-hover); transform: translateY(-1px); }
 
         .field { margin-bottom: 16px; }
         .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--admin-text-main); }
-        .field select, .field textarea { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; font-family: 'Inter', sans-serif; outline: none; transition: border 0.2s; }
-        .field select:focus, .field textarea:focus { border-color: var(--admin-primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
+        .form-input, .field select, .field textarea { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; font-family: 'Inter', sans-serif; outline: none; transition: border 0.2s; box-sizing: border-box; }
+        .form-input:focus, .field select:focus, .field textarea:focus { border-color: var(--admin-primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
 
         .summary-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed var(--admin-border); font-size: 14px; }
         .summary-row:last-child { border-bottom: none; }
@@ -196,8 +228,10 @@ if (isset($order['payment_method']) && strpos(strtolower($order['payment_method'
 
             <div class="card">
                 <div class="card-header">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
-                    <h2>Sản phẩm đã đặt</h2>
+                    <div class="card-header-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+                        <h2>Sản phẩm đã đặt</h2>
+                    </div>
                 </div>
                 <div class="table-responsive">
                     <table class="table">
@@ -213,15 +247,12 @@ if (isset($order['payment_method']) && strpos(strtolower($order['payment_method'
                         <tbody>
                         <?php foreach ($items as $item): ?>
                             <?php 
-                                // Truy vấn link nhập hàng từ Database dựa vào product_id của item
                                 $importLink = '';
                                 if (!empty($item['product_id'])) {
                                     $stmt = db()->prepare('SELECT import_link FROM products WHERE id = ?');
                                     $stmt->execute([$item['product_id']]);
                                     $importLink = trim((string)$stmt->fetchColumn());
                                 }
-
-                                // Nhận diện biến thể (Thường lưu ở cột variant_name_snapshot hoặc variant_name)
                                 $variantName = $item['variant_name_snapshot'] ?? $item['variant_name'] ?? '';
                             ?>
                             <tr>
@@ -283,23 +314,84 @@ if (isset($order['payment_method']) && strpos(strtolower($order['payment_method'
 
             <div class="card">
                 <div class="card-header">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"></circle></svg>
-                    <h2>Địa chỉ giao hàng</h2>
+                    <div class="card-header-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"></circle></svg>
+                        <h2>Địa chỉ giao hàng & Ghi chú khách</h2>
+                    </div>
+                    <?php if ($address): ?>
+                    <button type="button" class="btn-copy" onclick="toggleAddressEdit()">✏️ Sửa địa chỉ</button>
+                    <?php endif; ?>
                 </div>
-                <div class="info-block">
+                
+                <div class="info-block" id="address_display">
                 <?php if ($address): ?>
                     <div style="font-size: 15px; font-weight: 600; margin-bottom: 6px;"><?= e($address['receiver_name']) ?> <span class="muted" style="font-weight: 400;">(SĐT: <?= e($address['receiver_phone']) ?>)</span></div>
                     <div class="muted">📍 <?= e($address['address_line'] . ', ' . $address['ward_name'] . ', ' . $address['district_name'] . ', ' . $address['province_name']) ?></div>
-                <?php else: ?>
+                    
+                    <?php if (!empty($order['customer_note'])): ?>
+                    <div style="margin-top: 16px; padding: 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;">
+                        <div style="font-size: 12px; font-weight: 700; color: #d97706; text-transform: uppercase; margin-bottom: 6px;">📝 Ghi chú từ khách hàng:</div>
+                        <div style="font-size: 14px; color: #92400e; line-height: 1.5; font-style: italic;">
+                            "<?= nl2br(e($order['customer_note'])) ?>"
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <?php else: ?>
                     <div class="muted">Chưa có thông tin địa chỉ giao hàng.</div>
                 <?php endif; ?>
                 </div>
-            </div>
 
+                <?php if ($address): ?>
+                <div class="info-block" id="address_edit" style="display: none; background: #f9fafb; padding: 16px; border-radius: 8px; border: 1px solid var(--admin-border);">
+                    <form method="post">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="update_address">
+                        <div class="field">
+                            <label>Họ tên người nhận</label>
+                            <input type="text" name="receiver_name" class="form-input" value="<?= e($address['receiver_name']) ?>" required>
+                        </div>
+                        <div class="field">
+                            <label>Số điện thoại</label>
+                            <input type="text" name="receiver_phone" class="form-input" value="<?= e($address['receiver_phone']) ?>" required>
+                        </div>
+                        <div class="field">
+                            <label>Địa chỉ cụ thể (Số nhà, đường...)</label>
+                            <input type="text" name="address_line" class="form-input" value="<?= e($address['address_line']) ?>" required>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                            <div class="field">
+                                <label>Phường/Xã</label>
+                                <input type="text" name="ward_name" class="form-input" value="<?= e($address['ward_name']) ?>" required>
+                            </div>
+                            <div class="field">
+                                <label>Quận/Huyện</label>
+                                <input type="text" name="district_name" class="form-input" value="<?= e($address['district_name']) ?>" required>
+                            </div>
+                            <div class="field">
+                                <label>Tỉnh/Thành phố</label>
+                                <input type="text" name="province_name" class="form-input" value="<?= e($address['province_name']) ?>" required>
+                            </div>
+                        </div>
+                        
+                        <div class="field" style="margin-top: 8px;">
+                            <label>Ghi chú thêm cho shop (Khách ghi)</label>
+                            <textarea name="customer_note" class="form-input" rows="3" style="resize: vertical;" placeholder="Chỉnh sửa hoặc thêm ghi chú yêu cầu giao hàng của khách..."><?= e($order['customer_note'] ?? '') ?></textarea>
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 8px;">
+                            <button type="submit" class="btn" style="flex: 1;">💾 Lưu thông tin</button>
+                            <button type="button" class="btn" style="flex: 1; background: #9ca3af;" onclick="toggleAddressEdit()">❌ Hủy bỏ</button>
+                        </div>
+                    </form>
+                </div>
+                <?php endif; ?>
+            </div>
+            
             <div class="card">
                 <div class="card-header">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
-                    <h2>Lịch sử giao dịch</h2>
+                    <div class="card-header-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+                        <h2>Lịch sử giao dịch</h2>
+                    </div>
                 </div>
                 <?php if (!$payments): ?>
                     <div class="muted" style="padding-top: 10px;">Chưa có giao dịch thanh toán nào được ghi nhận.</div>
@@ -333,8 +425,10 @@ if (isset($order['payment_method']) && strpos(strtolower($order['payment_method'
         <div>
             <div class="card" style="border-top: 4px solid var(--admin-primary);">
                 <div class="card-header">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-                    <h2>Tóm tắt thanh toán</h2>
+                    <div class="card-header-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                        <h2>Tóm tắt thanh toán</h2>
+                    </div>
                 </div>
                 
                 <div style="margin-bottom: 16px; text-align: center;">
@@ -370,12 +464,15 @@ if (isset($order['payment_method']) && strpos(strtolower($order['payment_method'
 
             <div class="card" style="position: sticky; top: 24px;">
                 <div class="card-header">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                    <h2>Bảng điều khiển</h2>
+                    <div class="card-header-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        <h2>Bảng điều khiển</h2>
+                    </div>
                 </div>
                 
                 <form method="post" id="updateOrderForm" onsubmit="return confirmUpdate(event)">
                     <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="update_status">
                     
                     <div class="field">
                         <label>🚚 Trạng thái đơn hàng</label>
@@ -397,7 +494,7 @@ if (isset($order['payment_method']) && strpos(strtolower($order['payment_method'
 
                     <div class="field">
                         <label>📝 Ghi chú nội bộ</label>
-                        <textarea name="note" rows="4" placeholder="Nhập ghi chú để lưu lại thông tin xử lý (Khách không thấy)..."></textarea>
+                        <textarea name="note" rows="4" placeholder="Nhập ghi chú để lưu lại thông tin xử lý (Khách không thấy)..."><?= e($order['note'] ?? '') ?></textarea>
                     </div>
                     
                     <button class="btn" type="submit">
@@ -411,7 +508,20 @@ if (isset($order['payment_method']) && strpos(strtolower($order['payment_method'
 </div>
 
 <script>
-// 1. Logic Xác nhận thay đổi form
+// Logic bật/tắt form chỉnh sửa địa chỉ
+function toggleAddressEdit() {
+    const displayDiv = document.getElementById('address_display');
+    const editDiv = document.getElementById('address_edit');
+    if (displayDiv.style.display === 'none') {
+        displayDiv.style.display = 'block';
+        editDiv.style.display = 'none';
+    } else {
+        displayDiv.style.display = 'none';
+        editDiv.style.display = 'block';
+    }
+}
+
+// Logic Xác nhận thay đổi form
 function confirmUpdate(event) {
     const orderSelect = document.getElementById('order_status_select');
     const paymentSelect = document.getElementById('payment_status_select');
@@ -421,7 +531,6 @@ function confirmUpdate(event) {
 
     const message = `Bạn có chắc chắn muốn lưu thay đổi?\n\n- Đơn hàng: ${newOrderText}\n- Thanh toán: ${newPaymentText}`;
 
-    // Nếu người dùng bấm Cancel, form sẽ không được gửi đi
     if (!confirm(message)) {
         event.preventDefault(); 
         return false;
@@ -431,7 +540,7 @@ function confirmUpdate(event) {
 }
 
 
-// 2. Hàm thực hiện copy link/số
+// Hàm thực hiện copy link/số
 function copyText(button, textToCopy) {
     if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(textToCopy).then(() => {

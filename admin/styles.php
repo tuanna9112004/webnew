@@ -6,8 +6,24 @@ $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
-    $sort = (int)($_POST['sort_order'] ?? 0);
+    $sortInput = trim($_POST['sort_order'] ?? '');
+
     if ($name !== '') {
+        // Lấy vị trí lớn nhất hiện tại trong bảng styles
+        $stmtMax = db()->query('SELECT MAX(sort_order) FROM styles');
+        $maxSort = (int)$stmtMax->fetchColumn();
+
+        if ($sortInput === '') {
+            // 1. Trường hợp để trống: Tự động xếp xuống cuối cùng
+            $sort = $maxSort + 1;
+        } else {
+            // 2. Trường hợp nhập số cụ thể: Chèn vào giữa và đẩy các vị trí cũ xuống
+            $sort = (int)$sortInput;
+            $updateStmt = db()->prepare('UPDATE styles SET sort_order = sort_order + 1 WHERE sort_order >= ?');
+            $updateStmt->execute([$sort]);
+        }
+
+        // Thêm mới phong cách vào Database
         insert_lookup_item('styles', $name, $sort);
     }
     redirect('/admin/styles.php');
@@ -446,7 +462,10 @@ body {
     </aside>
 
     <main class="admin-main">
-       
+        <div class="admin-header">
+            <h1>Phong cách sản phẩm</h1>
+        </div>
+
         <?php if ($error !== ''): ?>
             <div class="alert error">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
@@ -466,7 +485,7 @@ body {
 
                     <div class="form-group">
                         <label>Thứ tự hiển thị <span style="font-weight: 400; color: var(--admin-text-muted);">(Tùy chọn)</span></label>
-                        <input type="number" name="sort_order" class="form-control" value="0" placeholder="0">
+                        <input type="number" name="sort_order" class="form-control" value="" placeholder="Để trống = Tự động xếp cuối">
                     </div>
 
                     <button class="btn-submit" type="submit">
@@ -522,4 +541,3 @@ body {
         </div>
     </main>
 </div>
-

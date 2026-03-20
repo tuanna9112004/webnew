@@ -40,24 +40,28 @@ if (!$missing && is_post()) {
     $orderCode = trim((string)($_POST['order_code'] ?? ''));
     $phone = normalize_phone($_POST['contact_phone'] ?? null);
     
-    // Yêu cầu bắt buộc SĐT, Mã đơn không bắt buộc
-    if (!$phone) {
-        $lookupError = 'Vui lòng nhập số điện thoại hợp lệ để tra cứu.';
+    // Yêu cầu nhập ít nhất 1 trong 2 thông tin
+    if ($orderCode === '' && !$phone) {
+        $lookupError = 'Vui lòng nhập Số điện thoại hoặc Mã đơn hàng để tra cứu.';
     } else {
-        if ($orderCode !== '') {
-            // Nếu có nhập mã đơn -> Tìm chính xác 1 đơn
+        if ($orderCode !== '' && $phone) {
+            // Nếu nhập cả 2 -> Tìm chính xác
             $stmt = db()->prepare('SELECT * FROM orders WHERE order_code = ? AND contact_phone = ? LIMIT 1');
             $stmt->execute([$orderCode, $phone]);
-            $lookupOrders = $stmt->fetchAll();
+        } elseif ($orderCode !== '') {
+            // Nếu chỉ nhập Mã đơn
+            $stmt = db()->prepare('SELECT * FROM orders WHERE order_code = ? LIMIT 1');
+            $stmt->execute([$orderCode]);
         } else {
-            // Nếu chỉ nhập SĐT -> Lấy danh sách các đơn của SĐT này (Giới hạn 20 đơn gần nhất)
+            // Nếu chỉ nhập SĐT -> Lấy danh sách các đơn của SĐT này (Giới hạn 20 đơn)
             $stmt = db()->prepare('SELECT * FROM orders WHERE contact_phone = ? ORDER BY id DESC LIMIT 20');
             $stmt->execute([$phone]);
-            $lookupOrders = $stmt->fetchAll();
         }
         
+        $lookupOrders = $stmt->fetchAll();
+
         if (empty($lookupOrders)) {
-            $lookupError = 'Không tìm thấy đơn hàng nào phù hợp với số điện thoại này.';
+            $lookupError = 'Không tìm thấy đơn hàng nào phù hợp với thông tin tra cứu.';
         }
     }
 }
@@ -76,98 +80,32 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 /* Layout cơ bản */
-.account-shell {
-    padding: 24px 16px;
-    max-width: 800px;
-    margin: 0 auto;
-}
-.account-card {
-    margin-bottom: 40px;
-}
-.section-title {
-    font-size: 20px;
-    margin-bottom: 6px;
-    font-weight: 700;
-}
-.section-subtitle {
-    color: var(--text-muted);
-    font-size: 14px;
-    margin-bottom: 20px;
-}
+.account-shell { padding: 24px 16px; max-width: 800px; margin: 0 auto; }
+.account-card { margin-bottom: 40px; }
+.section-title { font-size: 20px; margin-bottom: 6px; font-weight: 700; }
+.section-subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 20px; }
 
 /* Biểu mẫu (Forms) */
-.form-group {
-    margin-bottom: 16px;
-}
-.form-label {
-    font-weight: 600;
-    display: block;
-    margin-bottom: 8px;
-    font-size: 14px;
-}
-.form-control {
-    width: 100%;
-    padding: 12px 14px;
-    border-radius: 8px;
-    border: 1px solid #d1d5db;
-    font-size: 16px; /* Font size 16px trên mobile giúp tránh lỗi tự động zoom của iOS */
-    box-sizing: border-box;
-}
-.form-control:focus {
-    outline: none;
-    border-color: #4f46e5;
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-}
+.form-group { margin-bottom: 16px; }
+.form-label { font-weight: 600; display: block; margin-bottom: 8px; font-size: 14px; }
+.form-control { width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid #d1d5db; font-size: 16px; box-sizing: border-box; }
+.form-control:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
 
 /* Nút bấm (Buttons) */
-.btn-primary, .btn-secondary {
-    display: inline-block;
-    border-radius: 8px;
-    font-weight: 600;
-    text-align: center;
-    text-decoration: none;
-    cursor: pointer;
-    box-sizing: border-box;
-    transition: all 0.2s;
-    border: none;
-}
-.btn-primary {
-    padding: 12px 24px;
-    background: var(--primary-color);
-    color: #fff;
-    width: 100%; /* Mặc định full width trên mobile */
-    font-size: 16px;
-}
-.btn-secondary {
-    padding: 8px 16px;
-    background: #f3f4f6;
-    color: var(--primary-color);
-    font-size: 13px;
-}
+.btn-primary, .btn-secondary { display: inline-block; border-radius: 8px; font-weight: 600; text-align: center; text-decoration: none; cursor: pointer; box-sizing: border-box; transition: all 0.2s; border: none; }
+.btn-primary { padding: 12px 24px; background: var(--primary-color); color: #fff; width: 100%; font-size: 16px; }
+.btn-secondary { padding: 8px 16px; background: #f3f4f6; color: var(--primary-color); font-size: 13px; }
 .btn-secondary:hover { background: #e5e7eb; }
 
 /* Thông báo (Alerts) */
-.alert {
-    padding: 12px 16px;
-    border-radius: 8px;
-    margin-bottom: 16px;
-    font-size: 14px;
-    font-weight: 500;
-}
+.alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; font-weight: 500; }
 .alert-warning { background-color: #fef08a; color: #854d0e; }
 .alert-info { background-color: #dbeafe; color: #1e40af; }
 .alert-error { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
 .alert-success { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
 
 /* Badges trạng thái */
-.badge {
-    padding: 4px 10px;
-    border-radius: 9999px;
-    font-size: 12px;
-    font-weight: 600;
-    display: inline-block;
-    white-space: nowrap;
-}
+.badge { padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; display: inline-block; white-space: nowrap; }
 .badge-warning { background-color: #fef08a; color: #854d0e; }
 .badge-info { background-color: #dbeafe; color: #1e40af; }
 .badge-success { background-color: #dcfce3; color: #166534; }
@@ -175,73 +113,27 @@ require_once __DIR__ . '/../includes/header.php';
 .badge-default { background-color: #f3f4f6; color: #374151; }
 
 /* Bảng dữ liệu (Desktop Default) */
-.data-table {
-    width: 100%;
-    border-collapse: collapse;
-    text-align: left;
-}
-.data-table th {
-    padding: 12px 8px;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    font-size: 12px;
-    border-bottom: 2px solid var(--border-color);
-}
-.data-table td {
-    padding: 14px 8px;
-    border-bottom: 1px solid var(--border-color);
-}
+.data-table { width: 100%; border-collapse: collapse; text-align: left; }
+.data-table th { padding: 12px 8px; color: var(--text-muted); text-transform: uppercase; font-size: 12px; border-bottom: 2px solid var(--border-color); }
+.data-table td { padding: 14px 8px; border-bottom: 1px solid var(--border-color); }
 .text-highlight { font-weight: 700; color: #4f46e5; }
 .text-price { font-weight: 700; color: #ef4444; }
 .text-date { color: #475569; }
 
 /* Bảng hiển thị dạng Card cho Mobile */
 @media (max-width: 768px) {
-    .responsive-table thead {
-        display: none;
-    }
-    .responsive-table, .responsive-table tbody, .responsive-table tr, .responsive-table td {
-        display: block;
-        width: 100%;
-        box-sizing: border-box;
-    }
-    .responsive-table tr {
-        margin-bottom: 16px;
-        border: 1px solid var(--border-color);
-        border-radius: 12px;
-        padding: 12px;
-        background: #fff;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    .responsive-table td {
-        text-align: right;
-        padding: 8px 0;
-        border-bottom: 1px dashed var(--border-color);
-        min-height: 40px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    .responsive-table td:last-child {
-        border-bottom: none;
-        padding-bottom: 0;
-        margin-top: 8px;
-        justify-content: flex-end; /* Đẩy nút bấm sang phải */
-    }
-    .responsive-table td::before {
-        content: attr(data-label);
-        text-align: left;
-        font-weight: 600;
-        color: var(--text-muted);
-        font-size: 13px;
-        margin-right: 16px;
-    }
+    .responsive-table thead { display: none; }
+    .responsive-table, .responsive-table tbody, .responsive-table tr, .responsive-table td { display: block; width: 100%; box-sizing: border-box; }
+    .responsive-table tr { margin-bottom: 16px; border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .responsive-table td { text-align: right; padding: 8px 0; border-bottom: 1px dashed var(--border-color); min-height: 40px; display: flex; justify-content: space-between; align-items: center; }
+    .responsive-table td:last-child { border-bottom: none; padding-bottom: 0; margin-top: 8px; justify-content: flex-end; }
+    .responsive-table td::before { content: attr(data-label); text-align: left; font-weight: 600; color: var(--text-muted); font-size: 13px; margin-right: 16px; }
 }
 
 /* PC Override */
 @media (min-width: 769px) {
     .account-shell { padding-top: 40px; }
-    .btn-primary { width: auto; } /* Nút không chiếm full ngang trên PC */
+    .btn-primary { width: auto; }
     .form-wrapper { padding-bottom: 24px; border-bottom: 1px dashed var(--border-color); margin-bottom: 24px; }
 }
 </style>
@@ -295,7 +187,7 @@ require_once __DIR__ . '/../includes/header.php';
 
     <div class="account-card">
         <h2 class="section-title">Tra cứu đơn hàng</h2>
-        <p class="section-subtitle">Tra cứu bằng số điện thoại (dành cho khách mua không cần đăng nhập).</p>
+        <p class="section-subtitle">Nhập Số điện thoại hoặc Mã đơn hàng để kiểm tra trạng thái.</p>
         
         <?php if ($lookupError): ?>
             <div class="alert alert-error"><?= e($lookupError) ?></div>
@@ -305,11 +197,11 @@ require_once __DIR__ . '/../includes/header.php';
             <form method="post">
                 <?= csrf_field() ?>
                 <div class="form-group">
-                    <label class="form-label">Số điện thoại đặt hàng <span style="color: red;">*</span></label>
-                    <input class="form-control" type="text" name="contact_phone" value="<?= e($_POST['contact_phone'] ?? '') ?>" required placeholder="Nhập số điện thoại của bạn...">
+                    <label class="form-label">Số điện thoại đặt hàng</label>
+                    <input class="form-control" type="text" name="contact_phone" value="<?= e($_POST['contact_phone'] ?? '') ?>" placeholder="Nhập số điện thoại của bạn...">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Mã đơn hàng (Không bắt buộc)</label>
+                    <label class="form-label">Mã đơn hàng</label>
                     <input class="form-control" type="text" name="order_code" value="<?= e($_POST['order_code'] ?? '') ?>" placeholder="VD: DH25010100001">
                 </div>
                 <button class="btn-primary" type="submit">Tra cứu đơn</button>
@@ -318,7 +210,7 @@ require_once __DIR__ . '/../includes/header.php';
 
         <?php if (!empty($lookupOrders)): ?>
             <div class="alert alert-success">
-                Đã tìm thấy <?= count($lookupOrders) ?> đơn hàng khớp với số điện thoại của bạn.
+                Đã tìm thấy <?= count($lookupOrders) ?> đơn hàng phù hợp với thông tin của bạn.
             </div>
             <table class="data-table responsive-table">
                 <thead>

@@ -1,7 +1,7 @@
 {
     "material": [
-        "Voan lót cotton",
-        "Cotton, Mềm Mịn"
+        "Cotton, Mềm Mịn",
+        "Voan lót cotton"
     ],
     "size": [
         "S \/ M \/ L \/ XXL"
@@ -10,9 +10,17 @@
         "Trắng"
     ],
     "import_link": [
-        "https:\/\/zalo.me\/0961691107",
         "https:\/\/zalo.me\/g\/isptip699",
+        "https:\/\/zalo.me\/0961691107",
         "xyz",
         "abc"
+    ],
+    "variant_sizes": [
+        "S, L, M, XXL"
+    ],
+    "variant_colors": [
+        "Trắng, đỏ",
+        "Trắng",
+        "Trắngdsdsd"
     ]
 }

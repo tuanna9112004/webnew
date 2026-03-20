@@ -11,6 +11,22 @@ if (!$order) {
     exit('Không tìm thấy đơn hàng hoặc bạn không có quyền xem thông tin đơn hàng này.');
 }
 
+// Xử lý Hủy đơn hàng từ phía khách hàng
+if (is_post() && ($_POST['action'] ?? '') === 'cancel_order') {
+    $checkOrderStatus = strtolower((string)$order['order_status']);
+    $checkPaymentStatus = strtolower((string)$order['payment_status']);
+    
+    // Chỉ cho phép hủy nếu đơn chưa xác nhận và chưa thanh toán
+    if ($checkOrderStatus === 'cho_xac_nhan' && $checkPaymentStatus === 'chua_thanh_toan') {
+        $stmt = db()->prepare("UPDATE orders SET order_status = 'da_huy', updated_at = NOW() WHERE id = ?");
+        $stmt->execute([(int)$order['id']]);
+        
+        // Reload lại trang để cập nhật trạng thái mới nhất
+        header("Location: " . $_SERVER['REQUEST_URI']);
+        exit;
+    }
+}
+
 $pageTitle = 'Chi tiết đơn hàng #' . $order['order_code'];
 $pageStylesheets = [BASE_URL . '/assets/shop-upgrade.css'];
 $items = get_order_items((int)$order['id']);
@@ -148,7 +164,11 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
         }
         .data-table tbody td:first-child::before { display: none; }
         
-        .btn-primary, .btn-secondary { font-size: 14px; padding: 12px; width: 100%; display: block; text-align: center; margin-bottom: 8px; }
+        .btn-primary, .btn-secondary, button.btn-primary { font-size: 14px; padding: 12px; width: 100%; display: block; text-align: center; margin-bottom: 8px; border: none; cursor: pointer; border-radius: 8px; }
+    }
+    
+    @media screen and (min-width: 769px) {
+        button.btn-primary { display: inline-block; padding: 12px 24px; font-size: 14px; border: none; border-radius: 8px; cursor: pointer; color: #fff; font-weight: 600; text-align: center;}
     }
 </style>
 
@@ -273,7 +293,13 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
 
         <div class="order-card">
             <h2 class="section-title" style="font-size:20px;">Thông tin thanh toán</h2>
-            
+
+            <?php if ($currentPaymentStatus === 'chua_thanh_toan' && $currentOrderStatus === 'cho_xac_nhan'): ?>
+                <div style="background: #fffbeb; border: 1px solid #fde68a; color: #d97706; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; display: flex; gap: 10px; align-items: flex-start; line-height: 1.5;">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="flex-shrink:0; margin-top:1px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <div><strong>Lưu ý quan trọng:</strong> Đơn hàng cần được <strong>thanh toán cọc hoặc toàn bộ</strong> để hệ thống tiến hành xác nhận và giao hàng cho bạn.</div>
+                </div>
+            <?php endif; ?>
             <?php if ($showPaymentQr): ?>
                 <p class="section-subtitle" style="margin-bottom: 20px;">Hệ thống đã tạo mã thanh toán tự động, vui lòng chuyển khoản đúng nội dung để đơn hàng được duyệt tự động.</p>
 
@@ -349,8 +375,15 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
 
             <div class="mt-24" style="display:flex; flex-direction: column; gap:12px; flex-wrap:wrap;">
                 <a class="btn-secondary" href="<?= route_url('/index.php') ?>" style="text-align: center;">Tiếp tục mua sắm</a>
-                <a class="btn-primary" target="_blank" rel="noopener noreferrer" href="<?= e(shop_zalo_link()) ?>" style="text-align: center; background: #0068ff; border-color: #0068ff;">Hỗ trợ qua Zalo</a>
-            </div>
+                <a class="btn-primary" target="_blank" rel="noopener noreferrer" href="<?= e(shop_zalo_link()) ?>" style="text-align: center; background: #0068ff; border-color: #0068ff; text-decoration: none;">Hỗ trợ qua Zalo</a>
+                
+                <?php if ($currentPaymentStatus === 'chua_thanh_toan' && $currentOrderStatus === 'cho_xac_nhan'): ?>
+                    <form method="post" style="width: 100%; margin: 0;" onsubmit="return confirm('Bạn có chắc chắn muốn hủy đơn hàng này không? Thao tác này không thể hoàn tác.');">
+                        <input type="hidden" name="action" value="cancel_order">
+                        <button type="submit" class="btn-primary" style="background: #ef4444; border-color: #ef4444; width: 100%;">Hủy đơn hàng</button>
+                    </form>
+                <?php endif; ?>
+                </div>
         </div>
     </div>
 </div>

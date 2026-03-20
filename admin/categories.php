@@ -6,8 +6,24 @@ $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
-    $sort = (int)($_POST['sort_order'] ?? 0);
+    $sortInput = trim($_POST['sort_order'] ?? '');
+    
     if ($name !== '') {
+        // Lấy vị trí lớn nhất hiện tại trong bảng categories
+        $stmtMax = db()->query('SELECT MAX(sort_order) FROM categories');
+        $maxSort = (int)$stmtMax->fetchColumn();
+
+        if ($sortInput === '') {
+            // 1. Trường hợp để trống: Tự động xếp xuống cuối cùng
+            $sort = $maxSort + 1;
+        } else {
+            // 2. Trường hợp nhập số cụ thể: Chèn vào giữa và đẩy các vị trí cũ xuống
+            $sort = (int)$sortInput;
+            $updateStmt = db()->prepare('UPDATE categories SET sort_order = sort_order + 1 WHERE sort_order >= ?');
+            $updateStmt->execute([$sort]);
+        }
+
+        // Thêm mới danh mục vào Database
         insert_lookup_item('categories', $name, $sort);
     }
     redirect('/admin/categories.php');
@@ -415,7 +431,7 @@ body {
                 </a>
             </li>
             <li>
-                <a href="<?= route_url('/admin/orders.php') ?>" class="active">
+                <a href="<?= route_url('/admin/orders.php') ?>">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
                     Đơn hàng
                 </a>
@@ -454,16 +470,6 @@ body {
     </aside>
 
     <main class="admin-main">
-        <!-- <div class="admin-header">
-            <h1>Quản lý Danh mục</h1>
-            <div class="admin-nav">
-                <a class="btn btn-light" href="<?= route_url('/admin/product_types.php') ?>">Loại SP</a>
-                <a class="btn btn-light" href="<?= route_url('/admin/product_conditions.php') ?>">Tình trạng</a>
-                <a class="btn btn-light" href="<?= route_url('/admin/styles.php') ?>">Phong cách</a>
-                <a class="btn btn-back" href="<?= route_url('/admin/products.php') ?>">← Quay lại kho SP</a>
-            </div>
-        </div> -->
-
         <?php if ($error !== ''): ?>
             <div class="alert error">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
@@ -488,7 +494,7 @@ body {
 
                     <div class="form-group">
                         <label>Thứ tự hiển thị <span style="font-weight: 400; color: var(--admin-text-muted);">(Tùy chọn)</span></label>
-                        <input type="number" name="sort_order" class="form-control" value="0" placeholder="0">
+                        <input type="number" name="sort_order" class="form-control" value="" placeholder="Để trống = Tự động xếp cuối">
                     </div>
 
                     <button class="btn-submit" type="submit">
@@ -544,4 +550,3 @@ body {
         </div>
     </main>
 </div>
-
