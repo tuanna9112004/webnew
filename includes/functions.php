@@ -82,7 +82,6 @@ function route_url(string $path = '/'): string
     return $url;
 }
 
-
 function product_detail_path(array $product): string
 {
     $categorySlug = trim((string)($product['category_slug'] ?? ''));
@@ -139,7 +138,6 @@ function get_product_by_slug(string $categorySlug, string $productSlug, bool $on
     $product = $stmt->fetch();
     return $product ?: null;
 }
-
 
 function unique_slug(string $table, string $name, ?int $ignoreId = null): string {
     $base = slugify($name);
@@ -251,7 +249,7 @@ function get_products($filters = null, bool $onlyActive = true): array {
             'price_min'   => null,
             'price_max'   => null,
             'q'           => '',
-            'status'      => null // Cập nhật filter mới
+            'status'      => null
         ];
     } else {
         $filters = array_merge([
@@ -261,7 +259,7 @@ function get_products($filters = null, bool $onlyActive = true): array {
             'price_min'   => null,
             'price_max'   => null,
             'q'           => '',
-            'status'      => null // Cập nhật filter mới
+            'status'      => null
         ], $filters);
     }
 
@@ -284,14 +282,12 @@ function get_products($filters = null, bool $onlyActive = true): array {
 
     $params = [];
 
-    // --- CẬP NHẬT LOGIC LỌC TRẠNG THÁI HIỂN THỊ/ẨN ---
     $status = $filters['status'];
     if ($status === 'active' || ($status === null && $onlyActive)) {
         $sql .= ' AND p.is_active = 1';
     } elseif ($status === 'inactive') {
         $sql .= ' AND (p.is_active = 0 OR p.is_active IS NULL)';
     }
-    // Nếu status === 'all', không gắn thêm điều kiện AND nào để lấy hết
 
     if (!empty($filters['category_id'])) {
         $sql .= ' AND p.category_id = ?';
@@ -587,7 +583,7 @@ function optimize_and_store_uploaded_image(
         return save_original_uploaded_file($file, $mime, $destinationRelativeDir);
     }
 
-    if ($srcWidth <= $maxWidth && in_array($mime, ['image/jpeg', 'image/webp'])) {
+    if ($srcWidth <= $maxWidth && in_array($mime, ['image/jpeg', 'image/webp'], true)) {
         return save_original_uploaded_file($file, $mime, $destinationRelativeDir);
     }
 
@@ -602,13 +598,13 @@ function optimize_and_store_uploaded_image(
     if (extension_loaded('imagick')) {
         try {
             $imagick = new Imagick($file['tmp_name']);
-            $imagick->stripImage(); 
+            $imagick->stripImage();
 
             if ($srcWidth > $maxWidth) {
-                $imagick->scaleImage($maxWidth, 0); 
+                $imagick->scaleImage($maxWidth, 0);
             }
 
-            $useWebp = function_exists('imagewebp') || in_array('WEBP', Imagick::queryFormats());
+            $useWebp = function_exists('imagewebp') || in_array('WEBP', Imagick::queryFormats(), true);
             $outputExt = $useWebp ? 'webp' : 'jpg';
 
             if ($outputExt === 'webp') {
@@ -617,7 +613,7 @@ function optimize_and_store_uploaded_image(
             } else {
                 $imagick->setImageFormat('jpeg');
                 $imagick->setImageCompressionQuality($jpegQuality);
-                
+
                 if ($imagick->getImageAlphaChannel()) {
                     $imagick->setImageBackgroundColor('white');
                     $imagick->setImageAlphaChannel(Imagick::ALPHACHANNEL_REMOVE);
@@ -627,7 +623,7 @@ function optimize_and_store_uploaded_image(
 
             $name = build_upload_filename($outputExt);
             $absolutePath = $targetDir . '/' . $name;
-            
+
             $imagick->writeImage($absolutePath);
             $imagick->clear();
             $imagick->destroy();
@@ -636,13 +632,12 @@ function optimize_and_store_uploaded_image(
             $originalBytes = (int)($file['size'] ?? 0);
 
             if ($optimizedBytes > 0 && ($originalBytes <= 0 || $optimizedBytes < $originalBytes)) {
-                 return normalize_relative_upload_path($destinationRelativeDir . '/' . $name);
+                return normalize_relative_upload_path($destinationRelativeDir . '/' . $name);
             }
+
             @unlink($absolutePath);
             return save_original_uploaded_file($file, $mime, $destinationRelativeDir);
-            
         } catch (Throwable $e) {
-            
         }
     }
 
@@ -840,6 +835,55 @@ function admin_require_login(): void {
     if (!is_admin_logged_in()) {
         redirect('/admin/login.php');
     }
+}
+
+// =========================================
+// CÁC HÀM CẤU HÌNH & VẬN CHUYỂN
+// =========================================
+
+function get_app_setting(string $key, $default = null)
+{
+    static $settingsCache = [];
+
+    if (array_key_exists($key, $settingsCache)) {
+        return $settingsCache[$key];
+    }
+
+    try {
+        $stmt = db()->prepare('SELECT setting_value FROM app_settings WHERE setting_key = ? LIMIT 1');
+        $stmt->execute([$key]);
+        $value = $stmt->fetchColumn();
+
+        if ($value === false || $value === null || $value === '') {
+            $value = $default;
+        }
+    } catch (Throwable $e) {
+        $value = $default;
+    }
+
+    $settingsCache[$key] = $value;
+    return $value;
+}
+
+function shipping_freeship_threshold(): float
+{
+    return max(0, (float)get_app_setting('shipping_freeship_threshold', 500000));
+}
+
+function shipping_default_fee(): float
+{
+    return max(0, (float)get_app_setting('shipping_default_fee', 30000));
+}
+
+function calculate_shipping_fee(float $subtotalAmount): float
+{
+    $subtotalAmount = max(0, $subtotalAmount);
+
+    if ($subtotalAmount >= shipping_freeship_threshold()) {
+        return 0.0;
+    }
+
+    return shipping_default_fee();
 }
 
 require_once __DIR__ . '/shop_upgrade.php';

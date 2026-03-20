@@ -718,6 +718,14 @@ function format_order_money($value): float
     return round((float)$value, 2);
 }
 
+function calculate_checkout_shipping_fee(float $subtotal): float
+{
+    if (!function_exists('calculate_shipping_fee')) {
+        return 0.0;
+    }
+    return format_order_money(calculate_shipping_fee($subtotal));
+}
+
 function generate_order_code(): string
 {
     $nextId = (int)db()->query('SELECT COALESCE(MAX(id), 0) + 1 FROM orders')->fetchColumn();
@@ -1119,18 +1127,24 @@ function get_cart_totals(int $cartId): array
     $items = get_cart_items_detailed($cartId);
     $subtotal = 0.0;
     $quantity = 0;
+
     foreach ($items as $item) {
         $subtotal += (float)$item['unit_price_snapshot'] * (int)$item['quantity'];
         $quantity += (int)$item['quantity'];
     }
 
+    $subtotal = format_order_money($subtotal);
+    $shippingFee = calculate_checkout_shipping_fee($subtotal);
+    $discountAmount = 0.0;
+    $total = format_order_money($subtotal - $discountAmount + $shippingFee);
+
     return [
         'items' => $items,
         'item_count' => $quantity,
-        'subtotal' => format_order_money($subtotal),
-        'shipping_fee' => 0.0,
-        'discount_amount' => 0.0,
-        'total' => format_order_money($subtotal),
+        'subtotal' => $subtotal,
+        'shipping_fee' => $shippingFee,
+        'discount_amount' => $discountAmount,
+        'total' => $total,
     ];
 }
 
@@ -1433,8 +1447,8 @@ function create_order_from_cart_checkout(array $cart, array $input, ?array $cust
         return ['ok' => false, 'message' => 'Vui lòng nhập đầy đủ địa chỉ giao hàng.'];
     }
 
-    $subtotal = format_order_money($cartTotals['subtotal']);
-    $shippingFee = 0.0;
+    $subtotal = format_order_money((float)($cartTotals['subtotal'] ?? 0));
+    $shippingFee = format_order_money((float)($cartTotals['shipping_fee'] ?? calculate_checkout_shipping_fee($subtotal)));
     $discountAmount = 0.0;
     $totalAmount = format_order_money($subtotal - $discountAmount + $shippingFee);
     $depositRate = $paymentPlan === 'deposit_30' ? shop_deposit_rate() : 0;
@@ -1522,7 +1536,13 @@ function create_order_from_cart_checkout(array $cart, array $input, ?array $cust
         db()->prepare('INSERT INTO order_status_logs (order_id, from_status, to_status, note, changed_by_type, changed_by_id, created_at) VALUES (?, NULL, ?, ?, ?, ?, NOW())')
             ->execute([$orderId, 'cho_xac_nhan', 'Tạo đơn hàng mới từ giỏ hàng', $customer ? 'customer' : 'system', $customer['id'] ?? null]);
 
-        $paymentIntentId = create_payment_intent_record($customer['id'] ?? null, $orderId, $paymentPlan === 'deposit_30' ? 'order_deposit' : 'order_full', $depositRequired, ['order_code' => $orderCode]);
+        $paymentIntentId = create_payment_intent_record(
+            $customer['id'] ?? null,
+            $orderId,
+            $paymentPlan === 'deposit_30' ? 'order_deposit' : 'order_full',
+            $depositRequired,
+            ['order_code' => $orderCode]
+        );
 
         db()->prepare('UPDATE carts SET status = "converted", updated_at = NOW() WHERE id = ?')->execute([(int)$cart['id']]);
         if (!$customer) {
@@ -1553,6 +1573,7 @@ function create_order_from_product_checkout(array $product, array $input, ?array
     $quantity = max(1, (int)($input['quantity'] ?? 1));
     $paymentPlan = ($input['payment_plan'] ?? 'full') === 'deposit_30' ? 'deposit_30' : 'full';
     $checkoutType = $customer ? 'account' : 'guest';
+
     $availableVariants = get_product_variants((int)$product['id']);
     $selectedVariant = !empty($input['variant_id']) ? get_product_variant((int)$input['variant_id'], (int)$product['id']) : null;
     if (!$selectedVariant && count($availableVariants) > 1) {
@@ -1605,7 +1626,7 @@ function create_order_from_product_checkout(array $product, array $input, ?array
 
     $unitPrice = calculate_variant_display_price($product, $selectedVariant);
     $subtotal = format_order_money($unitPrice * $quantity);
-    $shippingFee = 0.0;
+    $shippingFee = calculate_checkout_shipping_fee($subtotal);
     $discountAmount = 0.0;
     $totalAmount = format_order_money($subtotal - $discountAmount + $shippingFee);
     $depositRate = $paymentPlan === 'deposit_30' ? shop_deposit_rate() : 0;
@@ -1678,7 +1699,13 @@ function create_order_from_product_checkout(array $product, array $input, ?array
         db()->prepare('INSERT INTO order_status_logs (order_id, from_status, to_status, note, changed_by_type, changed_by_id, created_at) VALUES (?, NULL, ?, ?, ?, ?, NOW())')
             ->execute([$orderId, 'cho_xac_nhan', 'Tạo đơn hàng mới', $customer ? 'customer' : 'system', $customer['id'] ?? null]);
 
-        $paymentIntentId = create_payment_intent_record($customer['id'] ?? null, $orderId, $paymentPlan === 'deposit_30' ? 'order_deposit' : 'order_full', $depositRequired, ['order_code' => $orderCode]);
+        $paymentIntentId = create_payment_intent_record(
+            $customer['id'] ?? null,
+            $orderId,
+            $paymentPlan === 'deposit_30' ? 'order_deposit' : 'order_full',
+            $depositRequired,
+            ['order_code' => $orderCode]
+        );
 
         db()->commit();
         return [
