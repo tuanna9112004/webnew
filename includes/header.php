@@ -289,7 +289,7 @@ $shopZaloLink = function_exists('shop_zalo_link') ? shop_zalo_link() : (defined(
 
         <nav class="menu" id="headerMenu">
             <a href="<?= route_url('/index.php') ?>">Trang chủ</a>
-            <a href="<?= route_url('/customer/orders.php') ?>">Tra cứu đơn</a>
+            <a href="<?= route_url('/order_lookup.php') ?>">Tra cứu đơn</a>
             <?php if (is_customer_logged_in()): ?>
                 <a href="<?= route_url('/customer/account.php') ?>">Tài khoản</a>
                 <a href="<?= route_url('/customer/logout.php') ?>">Đăng xuất</a>

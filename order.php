@@ -3,8 +3,9 @@ require_once __DIR__ . '/includes/functions.php';
 
 $orderCode = trim((string)($_GET['code'] ?? ''));
 $guestToken = trim((string)($_GET['token'] ?? ''));
+$lookupPhone = normalize_phone($_GET['phone'] ?? null);
 $customer = current_customer();
-$order = $orderCode !== '' ? get_order_by_code_for_view($orderCode, $customer['id'] ?? null, $guestToken !== '' ? $guestToken : null) : null;
+$order = $orderCode !== '' ? get_order_by_code_for_view($orderCode, $customer['id'] ?? null, $guestToken !== '' ? $guestToken : null, $lookupPhone) : null;
 
 if (!$order) {
     http_response_code(404);
@@ -13,18 +14,21 @@ if (!$order) {
 
 // Xử lý Hủy đơn hàng từ phía khách hàng
 if (is_post() && ($_POST['action'] ?? '') === 'cancel_order') {
-    $checkOrderStatus = strtolower((string)$order['order_status']);
-    $checkPaymentStatus = strtolower((string)$order['payment_status']);
-    
-    // Chỉ cho phép hủy nếu đơn chưa xác nhận và chưa thanh toán
-    if ($checkOrderStatus === 'cho_xac_nhan' && $checkPaymentStatus === 'chua_thanh_toan') {
-        $stmt = db()->prepare("UPDATE orders SET order_status = 'da_huy', updated_at = NOW() WHERE id = ?");
-        $stmt->execute([(int)$order['id']]);
-        
-        // Reload lại trang để cập nhật trạng thái mới nhất
-        header("Location: " . $_SERVER['REQUEST_URI']);
-        exit;
+    verify_public_or_customer_form_or_fail();
+
+    $freshOrder = get_order_by_code_for_view($orderCode, $customer['id'] ?? null, $guestToken !== '' ? $guestToken : null, $lookupPhone);
+    if ($freshOrder) {
+        $checkOrderStatus = strtolower((string)$freshOrder['order_status']);
+        $checkPaymentStatus = strtolower((string)$freshOrder['payment_status']);
+
+        if ($checkOrderStatus === 'cho_xac_nhan' && $checkPaymentStatus === 'chua_thanh_toan') {
+            $stmt = db()->prepare("UPDATE orders SET order_status = 'da_huy', cancelled_at = NOW(), updated_at = NOW() WHERE id = ?");
+            $stmt->execute([(int)$freshOrder['id']]);
+        }
     }
+
+    header("Location: " . $_SERVER['REQUEST_URI']);
+    exit;
 }
 
 $pageTitle = 'Chi tiết đơn hàng #' . $order['order_code'];

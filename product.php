@@ -308,6 +308,7 @@ require_once __DIR__ . '/includes/header.php';
 
         <form id="productActionForm" method="post" action="<?= route_url('/cart.php?action=add') ?>">
             <?= csrf_field() ?>
+            <?= public_form_field() ?>
             <input type="hidden" name="cart_action" value="add">
             <input type="hidden" name="product_id" value="<?= (int)$product['id'] ?>">
             <input type="hidden" name="variant_id" id="selectedVariantId" value="<?= $defaultVariant ? (int)$defaultVariant['id'] : '' ?>">
@@ -667,18 +668,34 @@ document.getElementById('productActionForm').addEventListener('submit', function
             'X-Requested-With': 'XMLHttpRequest'
         }
     })
-    .then(response => {
+    .then(async response => {
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+            const data = await response.json();
+            if (response.ok && data.ok) {
+                triggerFlyToCart();
+                showSuccessToast(data.message || 'Đã thêm vào giỏ hàng.');
+                if (typeof data.cart_count !== 'undefined') {
+                    updateHeaderCartCount(addedQty, data.cart_count);
+                } else {
+                    updateHeaderCartCount(addedQty);
+                }
+                return;
+            }
+            throw new Error(data.message || 'Có lỗi xảy ra khi thêm vào giỏ hàng.');
+        }
+
         if (response.ok || response.redirected) {
             triggerFlyToCart();
             showSuccessToast();
             updateHeaderCartCount(addedQty); 
         } else {
-            alert('Có lỗi xảy ra khi thêm vào giỏ hàng, vui lòng thử lại.');
+            throw new Error('Có lỗi xảy ra khi thêm vào giỏ hàng, vui lòng thử lại.');
         }
     })
     .catch(error => {
         console.error('Lỗi thêm giỏ hàng:', error);
-        alert('Không thể kết nối với máy chủ.');
+        alert(error && error.message ? error.message : 'Không thể kết nối với máy chủ.');
     })
     .finally(() => {
         setTimeout(() => {
@@ -688,11 +705,11 @@ document.getElementById('productActionForm').addEventListener('submit', function
     });
 });
 
-function updateHeaderCartCount(addedQty) {
+function updateHeaderCartCount(addedQty, exactCount = null) {
     const cartCountEl = document.getElementById('cartItemCount');
     if (cartCountEl) {
         const currentCount = parseInt(cartCountEl.textContent || '0', 10);
-        cartCountEl.textContent = currentCount + addedQty;
+        cartCountEl.textContent = Number.isInteger(exactCount) ? exactCount : (currentCount + addedQty);
         cartCountEl.classList.add('bump');
         setTimeout(() => {
             cartCountEl.classList.remove('bump');
@@ -739,8 +756,11 @@ function triggerFlyToCart() {
     }, 800);
 }
 
-function showSuccessToast() {
+function showSuccessToast(message = null) {
     const toast = document.getElementById('ajaxToast');
+    if (message) {
+        toast.textContent = message;
+    }
     toast.classList.add('show');
     setTimeout(() => {
         toast.classList.remove('show');

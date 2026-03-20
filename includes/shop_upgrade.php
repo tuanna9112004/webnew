@@ -473,6 +473,182 @@ function verify_csrf_or_fail(bool $allowBootstrapIfSessionMissing = false): void
     exit('Phiên làm việc đã hết hạn hoặc token không hợp lệ. Vui lòng tải lại trang và thử lại.');
 }
 
+
+function public_form_token(): string
+{
+    $current = trim((string)($_COOKIE['public_form_token'] ?? ''));
+    if ($current !== '' && preg_match('/^[a-f0-9]{64}$/i', $current)) {
+        return $current;
+    }
+
+    $token = bin2hex(random_bytes(32));
+    $httpsEnabled = (
+        (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (($_SERVER['SERVER_PORT'] ?? null) == 443)
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')
+    );
+
+    if (!headers_sent()) {
+        setcookie('public_form_token', $token, [
+            'expires' => time() + 60 * 60 * 24 * 30,
+            'path' => '/',
+            'httponly' => true,
+            'samesite' => 'Lax',
+            'secure' => $httpsEnabled,
+        ]);
+    }
+
+    $_COOKIE['public_form_token'] = $token;
+    return $token;
+}
+
+function refresh_public_form_token(): string
+{
+    unset($_COOKIE['public_form_token']);
+
+    $httpsEnabled = (
+        (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (($_SERVER['SERVER_PORT'] ?? null) == 443)
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')
+    );
+
+    if (!headers_sent()) {
+        setcookie('public_form_token', '', [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'httponly' => true,
+            'samesite' => 'Lax',
+            'secure' => $httpsEnabled,
+        ]);
+    }
+
+    return public_form_token();
+}
+
+function public_form_field(): string
+{
+    return '<input type="hidden" name="public_form_token" value="' . e(public_form_token()) . '">';
+}
+
+function public_form_is_valid(): bool
+{
+    $cookie = trim((string)($_COOKIE['public_form_token'] ?? ''));
+    $posted = trim((string)($_POST['public_form_token'] ?? ''));
+
+    if ($cookie === '' || $posted === '') {
+        return false;
+    }
+
+    return hash_equals($cookie, $posted);
+}
+
+function verify_public_or_customer_form_or_fail(bool $allowBootstrapIfSessionMissing = true): void
+{
+    if (csrf_is_valid($allowBootstrapIfSessionMissing) || public_form_is_valid()) {
+        return;
+    }
+
+    refresh_csrf_token();
+    refresh_public_form_token();
+
+    if (
+        (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest')
+        || (($_POST['is_ajax'] ?? '') === '1')
+    ) {
+        http_response_code(419);
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode([
+            'ok' => false,
+            'message' => 'Phiên mua hàng đã được làm mới. Vui lòng thử lại.',
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    http_response_code(419);
+    exit('Phiên mua hàng đã được làm mới. Vui lòng tải lại trang và thử lại.');
+}
+
+function checkout_submit_request_id(array $input = []): string
+{
+    return trim((string)($input['request_id'] ?? $_POST['request_id'] ?? ''));
+}
+
+function checkout_request_field(?string $requestId = null): string
+{
+    $requestId = trim((string)$requestId);
+    if ($requestId === '') {
+        $requestId = bin2hex(random_bytes(16));
+    }
+    return '<input type="hidden" name="request_id" value="' . e($requestId) . '">';
+}
+
+function find_order_by_request_id(string $requestId): ?array
+{
+    $requestId = trim($requestId);
+    if ($requestId === '' || !table_exists('orders') || !column_exists('orders', 'request_id')) {
+        return null;
+    }
+
+    $stmt = db()->prepare('SELECT * FROM orders WHERE request_id = ? LIMIT 1');
+    $stmt->execute([$requestId]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+function guest_checkout_enabled(): bool
+{
+    return shop_setting_bool('enable_guest_checkout', true);
+}
+
+function get_order_by_code_and_phone(string $orderCode, ?string $phone): ?array
+{
+    $orderCode = trim($orderCode);
+    $phone = normalize_phone($phone);
+
+    if ($orderCode === '' || !$phone || !table_exists('orders')) {
+        return null;
+    }
+
+    $stmt = db()->prepare('SELECT * FROM orders WHERE order_code = ? AND contact_phone = ? LIMIT 1');
+    $stmt->execute([$orderCode, $phone]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+function attach_guest_orders_to_customer(int $customerId, ?string $phone = null, ?string $email = null): void
+{
+    if ($customerId <= 0 || !table_exists('orders')) {
+        return;
+    }
+
+    $phone = normalize_phone($phone);
+    $email = normalize_email($email);
+
+    if (!$phone && !$email) {
+        return;
+    }
+
+    $conditions = [];
+    $params = [$customerId];
+
+    if ($phone) {
+        $conditions[] = 'contact_phone = ?';
+        $params[] = $phone;
+    }
+
+    if ($email) {
+        $conditions[] = 'contact_email = ?';
+        $params[] = $email;
+    }
+
+    if (!$conditions) {
+        return;
+    }
+
+    $sql = 'UPDATE orders SET customer_id = ?, checkout_type = "account", updated_at = NOW() WHERE customer_id IS NULL AND (' . implode(' OR ', $conditions) . ')';
+    db()->prepare($sql)->execute($params);
+}
+
 function customer_session_bootstrap(): void
 {
     if (!isset($_SESSION['customer_auth'])) {
@@ -540,6 +716,7 @@ function customer_login(array $customer): void
     if (table_exists('carts')) {
         merge_guest_cart_into_customer_cart((int)$customer['id']);
     }
+    attach_guest_orders_to_customer((int)$customer['id'], $customer['phone'] ?? null, $customer['email'] ?? null);
     customer_log_security_event((int)$customer['id'], 'login_success', 'Đăng nhập thành công');
 }
 
@@ -728,8 +905,17 @@ function calculate_checkout_shipping_fee(float $subtotal): float
 
 function generate_order_code(): string
 {
-    $nextId = (int)db()->query('SELECT COALESCE(MAX(id), 0) + 1 FROM orders')->fetchColumn();
-    return 'DH' . date('ymd') . str_pad((string)max(1, $nextId), 5, '0', STR_PAD_LEFT);
+    $prefix = 'DH' . date('ymd');
+    for ($i = 0; $i < 20; $i++) {
+        $candidate = $prefix . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
+        $stmt = db()->prepare('SELECT id FROM orders WHERE order_code = ? LIMIT 1');
+        $stmt->execute([$candidate]);
+        if (!$stmt->fetch()) {
+            return $candidate;
+        }
+    }
+
+    return $prefix . strtoupper(substr(bin2hex(random_bytes(6)), 0, 8));
 }
 
 function generate_payment_intent_code(): string
@@ -970,6 +1156,11 @@ function current_guest_cart_token(): string
     $_SESSION['guest_cart_token'] = $token;
 
     if (!headers_sent()) {
+        $httpsEnabled = (
+            (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (($_SERVER['SERVER_PORT'] ?? null) == 443)
+            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')
+        );
         setcookie(
             'guest_cart_token',
             $token,
@@ -978,6 +1169,7 @@ function current_guest_cart_token(): string
                 'path' => '/',
                 'httponly' => true,
                 'samesite' => 'Lax',
+                'secure' => $httpsEnabled,
             ]
         );
     }
@@ -990,11 +1182,17 @@ function clear_guest_cart_token(): void
     unset($_SESSION['guest_cart_token']);
     if (isset($_COOKIE['guest_cart_token'])) {
         if (!headers_sent()) {
+            $httpsEnabled = (
+                (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                || (($_SERVER['SERVER_PORT'] ?? null) == 443)
+                || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')
+            );
             setcookie('guest_cart_token', '', [
                 'expires' => time() - 3600,
                 'path' => '/',
                 'httponly' => true,
                 'samesite' => 'Lax',
+                'secure' => $httpsEnabled,
             ]);
         }
         unset($_COOKIE['guest_cart_token']);
@@ -1456,12 +1654,24 @@ function create_order_from_cart_checkout(array $cart, array $input, ?array $cust
     $remainingAmount = $totalAmount;
     $customerNote = trim((string)($input['customer_note'] ?? ''));
     $guestAccessToken = bin2hex(random_bytes(32));
+    $requestId = checkout_submit_request_id($input);
+    if ($requestId !== '' && ($existingOrder = find_order_by_request_id($requestId))) {
+        return [
+            'ok' => true,
+            'order_id' => (int)$existingOrder['id'],
+            'order_code' => (string)$existingOrder['order_code'],
+            'guest_access_token' => (string)($existingOrder['guest_access_token'] ?? ''),
+            'payment_intent_id' => (int)(get_latest_payment_intent_for_order((int)$existingOrder['id'])['id'] ?? 0),
+            'deduplicated' => true,
+        ];
+    }
     $orderCode = generate_order_code();
 
     db()->beginTransaction();
     try {
-        $stmt = db()->prepare('INSERT INTO orders (order_code, customer_id, cart_id, checkout_type, purchase_channel, order_source, contact_name, contact_phone, contact_email, customer_note, internal_note, subtotal_amount, discount_amount, shipping_fee, total_amount, payment_plan, deposit_rate, deposit_required_amount, paid_amount, remaining_amount, payment_status, order_status, guest_access_token, placed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, NOW(), NOW(), NOW())');
-        $stmt->execute([
+        $orderColumns = 'order_code, customer_id, cart_id, checkout_type, purchase_channel, order_source, contact_name, contact_phone, contact_email, customer_note, internal_note, subtotal_amount, discount_amount, shipping_fee, total_amount, payment_plan, deposit_rate, deposit_required_amount, paid_amount, remaining_amount, payment_status, order_status, guest_access_token';
+        $orderPlaceholders = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?';
+        $orderParams = [
             $orderCode,
             $customer['id'] ?? null,
             (int)$cart['id'],
@@ -1483,7 +1693,16 @@ function create_order_from_cart_checkout(array $cart, array $input, ?array $cust
             'chua_thanh_toan',
             'cho_xac_nhan',
             $guestAccessToken,
-        ]);
+        ];
+
+        if (column_exists('orders', 'request_id')) {
+            $orderColumns .= ', request_id';
+            $orderPlaceholders .= ', ?';
+            $orderParams[] = $requestId !== '' ? $requestId : null;
+        }
+
+        $stmt = db()->prepare('INSERT INTO orders (' . $orderColumns . ', placed_at, created_at, updated_at) VALUES (' . $orderPlaceholders . ', NOW(), NOW(), NOW())');
+        $stmt->execute($orderParams);
         $orderId = (int)db()->lastInsertId();
 
         $addressStmt = db()->prepare('INSERT INTO order_addresses (order_id, address_type, source_type, source_address_id, receiver_name, receiver_phone, province_name, district_name, ward_name, address_line, address_note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())');
@@ -1634,12 +1853,24 @@ function create_order_from_product_checkout(array $product, array $input, ?array
     $remainingAmount = $totalAmount;
     $customerNote = trim((string)($input['customer_note'] ?? ''));
     $guestAccessToken = bin2hex(random_bytes(32));
+    $requestId = checkout_submit_request_id($input);
+    if ($requestId !== '' && ($existingOrder = find_order_by_request_id($requestId))) {
+        return [
+            'ok' => true,
+            'order_id' => (int)$existingOrder['id'],
+            'order_code' => (string)$existingOrder['order_code'],
+            'guest_access_token' => (string)($existingOrder['guest_access_token'] ?? ''),
+            'payment_intent_id' => (int)(get_latest_payment_intent_for_order((int)$existingOrder['id'])['id'] ?? 0),
+            'deduplicated' => true,
+        ];
+    }
     $orderCode = generate_order_code();
 
     db()->beginTransaction();
     try {
-        $stmt = db()->prepare('INSERT INTO orders (order_code, customer_id, cart_id, checkout_type, purchase_channel, order_source, contact_name, contact_phone, contact_email, customer_note, internal_note, subtotal_amount, discount_amount, shipping_fee, total_amount, payment_plan, deposit_rate, deposit_required_amount, paid_amount, remaining_amount, payment_status, order_status, guest_access_token, placed_at, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, NOW(), NOW(), NOW())');
-        $stmt->execute([
+        $orderColumns = 'order_code, customer_id, cart_id, checkout_type, purchase_channel, order_source, contact_name, contact_phone, contact_email, customer_note, internal_note, subtotal_amount, discount_amount, shipping_fee, total_amount, payment_plan, deposit_rate, deposit_required_amount, paid_amount, remaining_amount, payment_status, order_status, guest_access_token';
+        $orderPlaceholders = '?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?';
+        $orderParams = [
             $orderCode,
             $customer['id'] ?? null,
             $checkoutType,
@@ -1660,7 +1891,16 @@ function create_order_from_product_checkout(array $product, array $input, ?array
             'chua_thanh_toan',
             'cho_xac_nhan',
             $guestAccessToken,
-        ]);
+        ];
+
+        if (column_exists('orders', 'request_id')) {
+            $orderColumns .= ', request_id';
+            $orderPlaceholders .= ', ?';
+            $orderParams[] = $requestId !== '' ? $requestId : null;
+        }
+
+        $stmt = db()->prepare('INSERT INTO orders (' . $orderColumns . ', placed_at, created_at, updated_at) VALUES (' . $orderPlaceholders . ', NOW(), NOW(), NOW())');
+        $stmt->execute($orderParams);
         $orderId = (int)db()->lastInsertId();
 
         $addressStmt = db()->prepare('INSERT INTO order_addresses (order_id, address_type, source_type, source_address_id, receiver_name, receiver_phone, province_name, district_name, ward_name, address_line, address_note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())');
@@ -1721,7 +1961,7 @@ function create_order_from_product_checkout(array $product, array $input, ?array
     }
 }
 
-function get_order_by_code_for_view(string $orderCode, ?int $customerId = null, ?string $guestToken = null): ?array
+function get_order_by_code_for_view(string $orderCode, ?int $customerId = null, ?string $guestToken = null, ?string $phone = null): ?array
 {
     $stmt = db()->prepare('SELECT * FROM orders WHERE order_code = ? LIMIT 1');
     $stmt->execute([$orderCode]);
@@ -1733,6 +1973,10 @@ function get_order_by_code_for_view(string $orderCode, ?int $customerId = null, 
         return $order;
     }
     if ($guestToken && hash_equals((string)$order['guest_access_token'], (string)$guestToken)) {
+        return $order;
+    }
+    $normalizedPhone = normalize_phone($phone);
+    if ($normalizedPhone && hash_equals((string)$order['contact_phone'], (string)$normalizedPhone)) {
         return $order;
     }
     return null;

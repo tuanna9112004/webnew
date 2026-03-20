@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
-$pageTitle = 'Tra cứu đơn hàng';
+$pageTitle = current_customer() ? 'Đơn hàng của tôi' : 'Tra cứu đơn hàng';
 $pageStylesheets = [BASE_URL . '/assets/shop-upgrade.css'];
 $missing = require_upgrade_tables(['orders']);
 $customer = current_customer();
@@ -36,29 +36,17 @@ if (!$missing && $customer) {
 
 // Xử lý Tra cứu đơn hàng
 if (!$missing && is_post()) {
-    verify_csrf_or_fail();
+    verify_public_or_customer_form_or_fail();
     $orderCode = trim((string)($_POST['order_code'] ?? ''));
     $phone = normalize_phone($_POST['contact_phone'] ?? null);
     
-    // Yêu cầu nhập ít nhất 1 trong 2 thông tin
-    if ($orderCode === '' && !$phone) {
-        $lookupError = 'Vui lòng nhập Số điện thoại hoặc Mã đơn hàng để tra cứu.';
+    if ($orderCode === '' || !$phone) {
+        $lookupError = 'Vui lòng nhập đồng thời Mã đơn hàng và Số điện thoại để tra cứu.';
     } else {
-        if ($orderCode !== '' && $phone) {
-            // Nếu nhập cả 2 -> Tìm chính xác
-            $stmt = db()->prepare('SELECT * FROM orders WHERE order_code = ? AND contact_phone = ? LIMIT 1');
-            $stmt->execute([$orderCode, $phone]);
-        } elseif ($orderCode !== '') {
-            // Nếu chỉ nhập Mã đơn
-            $stmt = db()->prepare('SELECT * FROM orders WHERE order_code = ? LIMIT 1');
-            $stmt->execute([$orderCode]);
-        } else {
-            // Nếu chỉ nhập SĐT -> Lấy danh sách các đơn của SĐT này (Giới hạn 20 đơn)
-            $stmt = db()->prepare('SELECT * FROM orders WHERE contact_phone = ? ORDER BY id DESC LIMIT 20');
-            $stmt->execute([$phone]);
-        }
-        
-        $lookupOrders = $stmt->fetchAll();
+        $stmt = db()->prepare('SELECT * FROM orders WHERE order_code = ? AND contact_phone = ? LIMIT 1');
+        $stmt->execute([$orderCode, $phone]);
+        $found = $stmt->fetch();
+        $lookupOrders = $found ? [$found] : [];
 
         if (empty($lookupOrders)) {
             $lookupError = 'Không tìm thấy đơn hàng nào phù hợp với thông tin tra cứu.';
@@ -187,7 +175,7 @@ require_once __DIR__ . '/../includes/header.php';
 
     <div class="account-card">
         <h2 class="section-title">Tra cứu đơn hàng</h2>
-        <p class="section-subtitle">Nhập Số điện thoại hoặc Mã đơn hàng để kiểm tra trạng thái.</p>
+        <p class="section-subtitle">Nhập đồng thời Mã đơn hàng và Số điện thoại đã đặt để kiểm tra trạng thái.</p>
         
         <?php if ($lookupError): ?>
             <div class="alert alert-error"><?= e($lookupError) ?></div>
@@ -196,9 +184,10 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="form-wrapper">
             <form method="post">
                 <?= csrf_field() ?>
+                <?= public_form_field() ?>
                 <div class="form-group">
                     <label class="form-label">Số điện thoại đặt hàng</label>
-                    <input class="form-control" type="text" name="contact_phone" value="<?= e($_POST['contact_phone'] ?? '') ?>" placeholder="Nhập số điện thoại của bạn...">
+                    <input class="form-control" type="text" name="contact_phone" value="<?= e($_POST['contact_phone'] ?? '') ?>" placeholder="Nhập số điện thoại đã đặt đơn...">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Mã đơn hàng</label>

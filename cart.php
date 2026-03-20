@@ -7,9 +7,10 @@ $missing = require_upgrade_tables(['carts', 'cart_items']);
 $cart = !$missing ? get_current_cart(true) : null;
 $message = flash_get('cart_notice');
 $error = null;
+$isAjaxRequest = (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest');
 
 if (!$missing && is_post()) {
-    verify_csrf_or_fail();
+    verify_public_or_customer_form_or_fail();
     $action = (string)($_POST['cart_action'] ?? $_GET['action'] ?? '');
 
     if ($action === 'add') {
@@ -18,10 +19,33 @@ if (!$missing && is_post()) {
         $quantity = max(1, (int)($_POST['quantity'] ?? 1));
         $result = add_item_to_cart($productId, $variantId, $quantity);
         if ($result['ok']) {
+            if ($isAjaxRequest) {
+                $latestCart = get_current_cart(false);
+                $latestTotals = $latestCart ? get_cart_totals((int)$latestCart['id']) : ['item_count' => 0];
+                header('Content-Type: application/json; charset=UTF-8');
+                echo json_encode([
+                    'ok' => true,
+                    'message' => $result['message'] ?? 'Đã thêm vào giỏ hàng.',
+                    'cart_count' => (int)($latestTotals['item_count'] ?? 0),
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                exit;
+            }
+
             flash_set('cart_notice', $result['message'] ?? 'Đã thêm vào giỏ hàng.', 'success');
             header('Location: ' . route_url('/cart.php'));
             exit;
         }
+
+        if ($isAjaxRequest) {
+            http_response_code(422);
+            header('Content-Type: application/json; charset=UTF-8');
+            echo json_encode([
+                'ok' => false,
+                'message' => $result['message'] ?? 'Không thể thêm vào giỏ hàng.',
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
         $error = $result['message'] ?? 'Không thể thêm vào giỏ hàng.';
     }
 
@@ -128,6 +152,7 @@ require_once __DIR__ . '/includes/header.php';
             <?php else: ?>
                 <form method="post">
                     <?= csrf_field() ?>
+                    <?= public_form_field() ?>
                     <input type="hidden" name="cart_action" value="update">
                     <div class="cart-list">
                         <?php foreach ($items as $item): ?>
@@ -189,6 +214,7 @@ require_once __DIR__ . '/includes/header.php';
 
                 <form method="post" style="margin-top:12px;">
                     <?= csrf_field() ?>
+                    <?= public_form_field() ?>
                     <input type="hidden" name="cart_action" value="clear">
                     <button class="btn-ghost" type="submit" onclick="return confirm('Bạn muốn làm trống toàn bộ giỏ hàng?');">Làm trống giỏ hàng</button>
                 </form>
