@@ -123,6 +123,10 @@ $cart = !$missing ? get_current_cart(false) : null;
 $totals = $cart ? get_cart_totals((int)$cart['id']) : ['items' => [], 'item_count' => 0, 'subtotal' => 0, 'total' => 0, 'shipping_fee' => 0, 'discount_amount' => 0];
 $items = $totals['items'];
 
+// --- CẤU HÌNH NGƯỠNG FREESHIP ---
+$freeShippingThreshold = 500000; // Thay đổi số tiền yêu cầu để được freeship tại đây (đơn vị: VNĐ)
+$remainingForFreeShip = $freeShippingThreshold - $totals['subtotal'];
+
 require_once __DIR__ . '/includes/header.php';
 ?>
 
@@ -150,6 +154,32 @@ require_once __DIR__ . '/includes/header.php';
             <?php if (!$items): ?>
                 <div class="alert alert-info mb-0">Giỏ hàng đang trống. Hãy quay lại gian hàng để chọn thêm sản phẩm.</div>
             <?php else: ?>
+                
+                <?php if ($remainingForFreeShip > 0): ?>
+                    <div class="alert" style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; border: 1px dashed #3b82f6; background-color: #eff6ff; color: #1d4ed8; border-radius: 8px; padding: 12px 16px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+                            <rect x="1" y="3" width="15" height="13"></rect>
+                            <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+                            <circle cx="5.5" cy="18.5" r="2.5"></circle>
+                            <circle cx="18.5" cy="18.5" r="2.5"></circle>
+                        </svg>
+                        <div>
+                            Mua thêm <strong><?= format_price($remainingForFreeShip) ?></strong> để được <strong>Miễn phí vận chuyển</strong>!
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <div class="alert" style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; border: 1px dashed #10b981; background-color: #ecfdf5; color: #047857; border-radius: 8px; padding: 12px 16px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+                            <rect x="1" y="3" width="15" height="13"></rect>
+                            <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+                            <circle cx="5.5" cy="18.5" r="2.5"></circle>
+                            <circle cx="18.5" cy="18.5" r="2.5"></circle>
+                        </svg>
+                        <div>
+                            Chúc mừng! Đơn hàng của bạn đã đủ điều kiện <strong>Miễn phí vận chuyển</strong>.
+                        </div>
+                    </div>
+                <?php endif; ?>
                 <form method="post">
                     <?= csrf_field() ?>
                     <?= public_form_field() ?>

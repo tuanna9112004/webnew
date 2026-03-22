@@ -55,7 +55,7 @@ $form = [
     'address_line' => old_input('address_line', $defaultAddress['address_line'] ?? ''),
     'address_note' => old_input('address_note', $defaultAddress['address_note'] ?? ''),
     'customer_note' => old_input('customer_note', ''),
-    'payment_plan' => old_input('payment_plan', 'full'),
+    'payment_plan' => old_input('payment_plan', 'full'), // Mặc định là full
     'address_source' => old_input('address_source', $customer && $defaultAddress ? 'saved' : 'manual'),
     'saved_address_id' => old_input('saved_address_id', $defaultAddress['id'] ?? ''),
 ];
@@ -126,9 +126,96 @@ require_once __DIR__ . '/includes/header.php';
 .checkout-help { margin-top:14px; font-size:14px; line-height:1.7; color:#475569; }
 .saved-address { border:1px solid #e5e7eb; border-radius:12px; padding:12px; margin-bottom:12px; background:#fafafa; }
 .submit-btn[disabled] { opacity:.6; cursor:not-allowed; }
+
+select.form-control { background-color: #fff; cursor: pointer; }
+select.form-control:disabled { background-color: #f1f5f9; cursor: not-allowed; }
+
+/* Style Cho 2 Nút Chọn Phương Thức Thanh Toán */
+.payment-methods {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 8px;
+}
+
+.payment-card {
+    position: relative;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+    cursor: pointer;
+    background: #fff;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.payment-card:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+
+.payment-card.active {
+    border-color: #3b82f6; /* Blue 500 */
+    background: #eff6ff; /* Blue 50 */
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+}
+
+.payment-card-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.payment-card.active .payment-card-title {
+    color: #1d4ed8; /* Blue 700 */
+}
+
+.payment-card-desc {
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+.payment-check-icon {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.payment-card.active .payment-check-icon {
+    border-color: #3b82f6;
+    background: #3b82f6;
+    color: #fff;
+}
+
+.payment-check-icon svg {
+    opacity: 0;
+    width: 14px;
+    height: 14px;
+}
+
+.payment-card.active .payment-check-icon svg {
+    opacity: 1;
+}
+
+
 @media (max-width: 900px) {
     .checkout-grid { grid-template-columns:1fr; }
     .checkout-form-grid { grid-template-columns:1fr; }
+    .payment-methods { grid-template-columns:1fr; } /* Mobile xếp chồng */
 }
 </style>
 
@@ -166,11 +253,11 @@ require_once __DIR__ . '/includes/header.php';
                 <div class="checkout-form-grid">
                     <div class="stack">
                         <label class="form-label">Họ tên đặt hàng *</label>
-                        <input class="form-control" type="text" name="contact_name" value="<?= e($form['contact_name']) ?>" required>
+                        <input class="form-control" type="text" name="contact_name" id="contact_name" value="<?= e($form['contact_name']) ?>" required>
                     </div>
                     <div class="stack">
                         <label class="form-label">Số điện thoại *</label>
-                        <input class="form-control" type="text" name="contact_phone" value="<?= e($form['contact_phone']) ?>" required>
+                        <input class="form-control" type="text" name="contact_phone" id="contact_phone" value="<?= e($form['contact_phone']) ?>" required>
                     </div>
                     <div class="stack full">
                         <label class="form-label">Email</label>
@@ -200,28 +287,48 @@ require_once __DIR__ . '/includes/header.php';
                         </div>
                     <?php endif; ?>
 
-                    <div class="stack">
-                        <label class="form-label">Người nhận *</label>
-                        <input class="form-control" type="text" name="receiver_name" value="<?= e($form['receiver_name']) ?>" required>
+                    <div class="stack full">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; padding: 10px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            <input type="checkbox" id="is_other_receiver" style="width: 18px; height: 18px;">
+                            Giao cho người khác (Nhờ người nhận hộ)
+                        </label>
                     </div>
-                    <div class="stack">
-                        <label class="form-label">SĐT nhận hàng *</label>
-                        <input class="form-control" type="text" name="receiver_phone" value="<?= e($form['receiver_phone']) ?>" required>
+
+                    <div id="receiver_fields" class="full" style="display: none; grid-template-columns: 1fr 1fr; gap: 14px;">
+                        <div class="stack">
+                            <label class="form-label">Người nhận *</label>
+                            <input class="form-control" type="text" name="receiver_name" id="receiver_name" value="<?= e($form['receiver_name']) ?>">
+                        </div>
+                        <div class="stack">
+                            <label class="form-label">SĐT nhận hàng *</label>
+                            <input class="form-control" type="text" name="receiver_phone" id="receiver_phone" value="<?= e($form['receiver_phone']) ?>">
+                        </div>
                     </div>
+
                     <div class="stack">
                         <label class="form-label">Tỉnh / Thành *</label>
-                        <input class="form-control" type="text" name="province_name" value="<?= e($form['province_name']) ?>" required>
+                        <select class="form-control" id="province_select" required>
+                            <option value="">Chọn Tỉnh / Thành</option>
+                        </select>
+                        <input type="hidden" name="province_name" id="province_name" value="<?= e($form['province_name']) ?>">
                     </div>
                     <div class="stack">
                         <label class="form-label">Quận / Huyện *</label>
-                        <input class="form-control" type="text" name="district_name" value="<?= e($form['district_name']) ?>" required>
+                        <select class="form-control" id="district_select" required disabled>
+                            <option value="">Chọn Quận / Huyện</option>
+                        </select>
+                        <input type="hidden" name="district_name" id="district_name" value="<?= e($form['district_name']) ?>">
                     </div>
                     <div class="stack">
                         <label class="form-label">Phường / Xã *</label>
-                        <input class="form-control" type="text" name="ward_name" value="<?= e($form['ward_name']) ?>" required>
+                        <select class="form-control" id="ward_select" required disabled>
+                            <option value="">Chọn Phường / Xã</option>
+                        </select>
+                        <input type="hidden" name="ward_name" id="ward_name" value="<?= e($form['ward_name']) ?>">
                     </div>
+
                     <div class="stack full">
-                        <label class="form-label">Địa chỉ chi tiết *</label>
+                        <label class="form-label">Địa chỉ chi tiết (Số nhà, Tên đường) *</label>
                         <input class="form-control" type="text" name="address_line" value="<?= e($form['address_line']) ?>" required>
                     </div>
                     <div class="stack full">
@@ -232,16 +339,42 @@ require_once __DIR__ . '/includes/header.php';
                         <label class="form-label">Ghi chú cho shop</label>
                         <textarea class="form-control" name="customer_note" rows="3" placeholder="Không bắt buộc"><?= e($form['customer_note']) ?></textarea>
                     </div>
+                    
                     <div class="stack full">
-                        <label class="form-label">Phương thức thanh toán</label>
-                        <select class="form-control" name="payment_plan">
-                            <option value="full" <?= $form['payment_plan'] === 'full' ? 'selected' : '' ?>>Thanh toán toàn bộ</option>
-                            <option value="deposit_30" <?= $form['payment_plan'] === 'deposit_30' ? 'selected' : '' ?>>Đặt cọc <?= (int)shop_deposit_rate() ?>%</option>
-                        </select>
+                        <label class="form-label">Phương thức thanh toán *</label>
+                        
+                        <input type="hidden" name="payment_plan" id="payment_plan_input" value="<?= e($form['payment_plan']) ?>">
+                        
+                        <div class="payment-methods">
+                            <div class="payment-card <?= $form['payment_plan'] === 'full' ? 'active' : '' ?>" data-value="full">
+                                <div class="payment-check-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                </div>
+                                <div class="payment-card-title">
+                                    💳 Thanh toán toàn bộ
+                                </div>
+                                <div class="payment-card-desc">
+                                    Chuyển khoản 100% giá trị đơn hàng trước khi giao.
+                                </div>
+                            </div>
+                            
+                            <div class="payment-card <?= $form['payment_plan'] === 'deposit_30' ? 'active' : '' ?>" data-value="deposit_30">
+                                <div class="payment-check-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                </div>
+                                <div class="payment-card-title">
+                                    💸 Chuyển khoản cọc
+                                </div>
+                                <div class="payment-card-desc">
+                                    Đặt cọc trước <?= (int)shop_deposit_rate() ?>%. Số tiền còn lại thanh toán khi nhận hàng (COD).
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
                 </div>
 
-                <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:20px;">
+                <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:30px;">
                     <button class="btn-primary submit-btn" type="submit" id="checkoutSubmitBtn">Đặt hàng ngay</button>
                     <a class="btn-secondary" href="<?= $isBuyNow ? route_url('/product.php?id=' . (int)$product['id']) : route_url('/cart.php') ?>">Quay lại</a>
                 </div>
@@ -297,7 +430,7 @@ require_once __DIR__ . '/includes/header.php';
             </div>
 
             <div class="checkout-help">
-                Sau khi đặt xong, hệ thống sẽ tạo mã đơn và hướng bạn sang trang chi tiết đơn hàng. Nếu bạn mua với tư cách khách, hãy lưu lại mã đơn hoặc tra cứu lại bằng số điện thoại.
+                Sau khi đặt xong, hệ thống sẽ tạo mã đơn và hiển thị mã QR thanh toán theo lựa chọn của bạn.
             </div>
         </aside>
     </div>
@@ -307,8 +440,159 @@ require_once __DIR__ . '/includes/header.php';
 document.addEventListener('DOMContentLoaded', function () {
     const form = document.getElementById('checkoutForm');
     const submitBtn = document.getElementById('checkoutSubmitBtn');
+    
+    const isOtherReceiver = document.getElementById('is_other_receiver');
+    const receiverFields = document.getElementById('receiver_fields');
+    const rName = document.getElementById('receiver_name');
+    const rPhone = document.getElementById('receiver_phone');
+    const cName = document.getElementById('contact_name');
+    const cPhone = document.getElementById('contact_phone');
+
     if (!form || !submitBtn) return;
 
+    // ----- LOGIC PAYMENT METHODS (Click Card) -----
+    const paymentCards = document.querySelectorAll('.payment-card');
+    const paymentInput = document.getElementById('payment_plan_input');
+    
+    paymentCards.forEach(card => {
+        card.addEventListener('click', function() {
+            // Xóa active tất cả
+            paymentCards.forEach(c => c.classList.remove('active'));
+            // Thêm active cho card được click
+            this.classList.add('active');
+            // Cập nhật value vào input hidden
+            paymentInput.value = this.dataset.value;
+            // Update localStorage
+            updateDraftData();
+        });
+    });
+
+    // ----- LOGIC ẨN/HIỆN NGƯỜI NHẬN HỘ -----
+    function toggleReceiverFields() {
+        if (isOtherReceiver.checked) {
+            receiverFields.style.display = 'grid'; 
+            rName.required = true;
+            rPhone.required = true;
+        } else {
+            receiverFields.style.display = 'none';
+            rName.required = false;
+            rPhone.required = false;
+        }
+    }
+    isOtherReceiver.addEventListener('change', toggleReceiverFields);
+
+    form.addEventListener('submit', function (e) {
+        if (!isOtherReceiver.checked) {
+            rName.value = cName.value;
+            rPhone.value = cPhone.value;
+        }
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Đang xử lý...';
+    });
+
+    // ----- LOGIC SELECT TỈNH THÀNH (API ESGOO) -----
+    const pSelect = document.getElementById('province_select');
+    const dSelect = document.getElementById('district_select');
+    const wSelect = document.getElementById('ward_select');
+    const pInput = document.getElementById('province_name');
+    const dInput = document.getElementById('district_name');
+    const wInput = document.getElementById('ward_name');
+
+    let initP = pInput.value;
+    let initD = dInput.value;
+    let initW = wInput.value;
+
+    async function fetchAPI(url) {
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+            return data.data || [];
+        } catch (e) {
+            console.error("Lỗi lấy dữ liệu API:", e);
+            return [];
+        }
+    }
+
+    async function loadProvinces() {
+        const provinces = await fetchAPI('https://esgoo.net/api-tinhthanh/1/0.htm');
+        provinces.forEach(p => {
+            let opt = new Option(p.full_name, p.id);
+            opt.dataset.name = p.full_name;
+            pSelect.add(opt);
+        });
+        
+        if(initP) {
+            let match = Array.from(pSelect.options).find(o => o.dataset.name === initP);
+            if(match) {
+                pSelect.value = match.value;
+                await loadDistricts(match.value);
+            }
+        }
+    }
+
+    async function loadDistricts(pId) {
+        dSelect.innerHTML = '<option value="">Chọn Quận / Huyện</option>';
+        wSelect.innerHTML = '<option value="">Chọn Phường / Xã</option>';
+        dSelect.disabled = true; wSelect.disabled = true;
+        if(!pId) return;
+
+        const districts = await fetchAPI('https://esgoo.net/api-tinhthanh/2/' + pId + '.htm');
+        districts.forEach(d => {
+            let opt = new Option(d.full_name, d.id);
+            opt.dataset.name = d.full_name;
+            dSelect.add(opt);
+        });
+        dSelect.disabled = false;
+
+        if(initD) {
+            let match = Array.from(dSelect.options).find(o => o.dataset.name === initD);
+            if(match) {
+                dSelect.value = match.value;
+                await loadWards(match.value);
+            }
+        }
+    }
+
+    async function loadWards(dId) {
+        wSelect.innerHTML = '<option value="">Chọn Phường / Xã</option>';
+        wSelect.disabled = true;
+        if(!dId) return;
+
+        const wards = await fetchAPI('https://esgoo.net/api-tinhthanh/3/' + dId + '.htm');
+        wards.forEach(w => {
+            let opt = new Option(w.full_name, w.id);
+            opt.dataset.name = w.full_name;
+            wSelect.add(opt);
+        });
+        wSelect.disabled = false;
+
+        if(initW) {
+            let match = Array.from(wSelect.options).find(o => o.dataset.name === initW);
+            if(match) wSelect.value = match.value;
+        }
+    }
+
+    pSelect.addEventListener('change', function() {
+        initD = ''; initW = ''; 
+        pInput.value = this.options[this.selectedIndex]?.dataset?.name || '';
+        dInput.value = ''; wInput.value = '';
+        loadDistricts(this.value);
+    });
+
+    dSelect.addEventListener('change', function() {
+        initW = '';
+        dInput.value = this.options[this.selectedIndex]?.dataset?.name || '';
+        wInput.value = '';
+        loadWards(this.value);
+    });
+
+    wSelect.addEventListener('change', function() {
+        wInput.value = this.options[this.selectedIndex]?.dataset?.name || '';
+    });
+
+    loadProvinces();
+
+    // ----- LƯU DỰ TOÁN FORM VÀO LOCALSTORAGE -----
     const key = 'dmm_checkout_draft';
     const fields = [
         'contact_name','contact_phone','contact_email','receiver_name','receiver_phone',
@@ -321,19 +605,36 @@ document.addEventListener('DOMContentLoaded', function () {
         fields.forEach(function(name) {
             const el = form.querySelector('[name="' + name + '"]');
             if (!el) return;
-            if ((el.type === 'radio')) {
+            
+            if (el.type === 'radio') {
                 if (saved[name] && el.value === saved[name]) {
                     el.checked = true;
                 }
-                return;
-            }
-            if (!el.value && saved[name]) {
-                el.value = saved[name];
+            } else if (name === 'payment_plan') {
+                 // Restore logic for custom payment cards
+                 if(saved[name]) {
+                     el.value = saved[name];
+                     paymentCards.forEach(c => {
+                         c.classList.remove('active');
+                         if(c.dataset.value === saved[name]) {
+                             c.classList.add('active');
+                         }
+                     });
+                 }
+            } else {
+                if (!el.value && saved[name]) {
+                    el.value = saved[name];
+                }
             }
         });
+        
+        initP = pInput.value;
+        initD = dInput.value;
+        initW = wInput.value;
+
     } catch (e) {}
 
-    form.addEventListener('input', function () {
+    function updateDraftData() {
         const data = {};
         fields.forEach(function(name) {
             const el = form.querySelector('[name="' + name + '"]');
@@ -346,12 +647,9 @@ document.addEventListener('DOMContentLoaded', function () {
             data[name] = el.value;
         });
         localStorage.setItem(key, JSON.stringify(data));
-    });
+    }
 
-    form.addEventListener('submit', function () {
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Đang xử lý...';
-    });
+    form.addEventListener('input', updateDraftData);
 });
 </script>
 

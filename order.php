@@ -31,17 +31,49 @@ if (is_post() && ($_POST['action'] ?? '') === 'cancel_order') {
     exit;
 }
 
+// Xử lý Cập nhật địa chỉ nhận hàng
+if (is_post() && ($_POST['action'] ?? '') === 'update_address') {
+    verify_public_or_customer_form_or_fail();
+
+    $freshOrder = get_order_by_code_for_view($orderCode, $customer['id'] ?? null, $guestToken !== '' ? $guestToken : null, $lookupPhone);
+    if ($freshOrder) {
+        $checkOrderStatus = strtolower((string)$freshOrder['order_status']);
+
+        // Chỉ cho phép cập nhật khi đơn đang chờ xác nhận
+        if ($checkOrderStatus === 'cho_xac_nhan') {
+            $newName = trim($_POST['receiver_name'] ?? '');
+            $newPhone = normalize_phone($_POST['receiver_phone'] ?? '');
+            
+            // Lấy thêm 3 trường địa chỉ mới
+            $newProvince = trim($_POST['province_name'] ?? '');
+            $newDistrict = trim($_POST['district_name'] ?? '');
+            $newWard = trim($_POST['ward_name'] ?? '');
+            
+            $newLine = trim($_POST['address_line'] ?? '');
+            $newNote = trim($_POST['address_note'] ?? '');
+
+            if ($newName && $newPhone && $newProvince && $newDistrict && $newWard && $newLine) {
+                $stmt = db()->prepare("UPDATE order_addresses SET receiver_name = ?, receiver_phone = ?, province_name = ?, district_name = ?, ward_name = ?, address_line = ?, address_note = ? WHERE order_id = ?");
+                $stmt->execute([$newName, $newPhone, $newProvince, $newDistrict, $newWard, $newLine, $newNote, (int)$freshOrder['id']]);
+            }
+        }
+    }
+
+    header("Location: " . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
 $pageTitle = 'Chi tiết đơn hàng #' . $order['order_code'];
 $pageStylesheets = [BASE_URL . '/assets/shop-upgrade.css'];
 $items = get_order_items((int)$order['id']);
 $address = get_order_address((int)$order['id']);
 $payments = get_order_payments((int)$order['id']);
 $intent = get_latest_payment_intent_for_order((int)$order['id']);
+
 $bankName = sepay_bank_name() ?: 'CẤU HÌNH TRONG app_settings';
 $bankCode = sepay_bank_code();
 $bankAccountNo = sepay_bank_account_no() ?: 'CHƯA_CẤU_HÌNH';
 $bankAccountName = sepay_account_name() ?: shop_name();
-$qrImageUrl = $intent ? ($intent['qr_image_url'] ?: sepay_qr_url((float)$intent['requested_amount'], (string)$intent['transfer_note'])) : '';
 
 require_once __DIR__ . '/includes/header.php';
 
@@ -49,6 +81,8 @@ $statusMap = order_status_options();
 $paymentMap = payment_status_options();
 $currentOrderStatus = strtolower((string)$order['order_status']);
 $currentPaymentStatus = strtolower((string)$order['payment_status']);
+$paymentPlan = strtolower((string)($order['payment_plan'] ?? ''));
+
 $paymentClass = order_payment_pill_class($currentPaymentStatus);
 $paymentStatusText = $paymentMap[$currentPaymentStatus][0] ?? $order['payment_status'];
 
@@ -67,11 +101,38 @@ if ($currentStepIndex === false) {
     $currentStepIndex = 0;
 }
 
-$intentStatus = strtolower((string)($intent['status'] ?? ''));
-$showPaymentQr = $intent
-    && $currentPaymentStatus === 'chua_thanh_toan'
-    && in_array($intentStatus, ['pending', 'waiting_payment'], true)
-    && in_array($currentOrderStatus, ['cho_xac_nhan', 'dang_chuan_bi'], true);
+// --- LOGIC HIỂN THỊ MÃ QR ĐƯỢC FIX Ở ĐÂY ---
+$totalAmount = (float)($order['total_amount'] ?? 0);
+$depositRequiredAmount = (float)($order['deposit_required_amount'] ?? 0);
+if ($depositRequiredAmount <= 0) {
+    $depositRequiredAmount = round($totalAmount * 0.3); // Mặc định cọc 30%
+}
+
+$qrRequestedAmount = 0;
+$qrTransferNote = (string)$order['order_code'];
+
+if ($paymentPlan === 'deposit_30' && $currentPaymentStatus === 'chua_thanh_toan') {
+    $qrRequestedAmount = $depositRequiredAmount;
+    $qrTransferNote .= ' COC';
+} else {
+    $qrRequestedAmount = $totalAmount;
+}
+
+// Lấy thông tin từ Intent nếu có, nếu không thì tự sinh QR dựa trên số tiền cần thu
+if ($intent && isset($intent['requested_amount'])) {
+    $qrRequestedAmount = (float)$intent['requested_amount'];
+    $qrTransferNote = (string)$intent['transfer_note'];
+}
+
+$qrImageUrl = $intent && !empty($intent['qr_image_url']) 
+    ? $intent['qr_image_url'] 
+    : sepay_qr_url($qrRequestedAmount, $qrTransferNote);
+
+// Điều kiện hiển thị QR: 
+// 1. Đơn đang chờ duyệt hoặc chuẩn bị
+// 2. Tiền chưa thanh toán đủ HOẶC chọn cọc mà chưa cọc
+$showPaymentQr = in_array($currentOrderStatus, ['cho_xac_nhan', 'dang_chuan_bi'], true) 
+                 && ($currentPaymentStatus === 'chua_thanh_toan' || ($paymentPlan === 'deposit_30' && $currentPaymentStatus !== 'da_dat_coc' && $currentPaymentStatus !== 'da_thanh_toan'));
 
 $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
 ?>
@@ -281,15 +342,79 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
                 <div class="mt-24">
                     <h2 class="section-title" style="font-size:18px;">Địa chỉ nhận hàng</h2>
                     <div class="address-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
-                        <strong style="font-size: 15px; color: #0f172a;" class="word-break"><?= e($address['receiver_name']) ?> - <?= e($address['receiver_phone']) ?></strong>
-                        <div style="margin-top:8px; color:#475569; line-height: 1.5;" class="word-break">
-                            <?= e($address['address_line'] . ', ' . $address['ward_name'] . ', ' . $address['district_name'] . ', ' . $address['province_name']) ?>
-                        </div>
-                        <?php if (!empty($address['address_note'])): ?>
-                            <div style="margin-top:8px; color:#ef4444; background: #fee2e2; padding: 8px 12px; border-radius: 6px; font-size: 13px;" class="word-break">
-                                <strong>Ghi chú:</strong> <?= e($address['address_note']) ?>
+                        
+                        <div id="view-address-info">
+                            <strong style="font-size: 15px; color: #0f172a;" class="word-break"><?= e($address['receiver_name']) ?> - <?= e($address['receiver_phone']) ?></strong>
+                            <div style="margin-top:8px; color:#475569; line-height: 1.5;" class="word-break">
+                                <?= e($address['address_line'] . ', ' . $address['ward_name'] . ', ' . $address['district_name'] . ', ' . $address['province_name']) ?>
                             </div>
+                            <?php if (!empty($address['address_note'])): ?>
+                                <div style="margin-top:8px; color:#ef4444; background: #fee2e2; padding: 8px 12px; border-radius: 6px; font-size: 13px;" class="word-break">
+                                    <strong>Ghi chú:</strong> <?= e($address['address_note']) ?>
+                                </div>
+                            <?php endif; ?>
+                            
+                            <?php if ($currentOrderStatus === 'cho_xac_nhan'): ?>
+                                <button type="button" class="btn-ghost" onclick="document.getElementById('edit-address-form').style.display='block'; document.getElementById('view-address-info').style.display='none';" style="margin-top: 12px; font-size: 13px; color: #3b82f6; padding: 6px 12px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">
+                                    ✎ Sửa địa chỉ nhận hàng
+                                </button>
+                            <?php endif; ?>
+                        </div>
+
+                        <?php if ($currentOrderStatus === 'cho_xac_nhan'): ?>
+                            <form id="edit-address-form" method="post" style="display: none; margin-top: 8px;">
+                                <?= function_exists('csrf_field') ? csrf_field() : '' ?>
+                                <?= function_exists('public_form_field') ? public_form_field() : '' ?>
+                                <input type="hidden" name="action" value="update_address">
+                                
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 12px;">
+                                    <div>
+                                        <label class="form-label" style="font-size: 13px;">Tên người nhận <span style="color:red">*</span></label>
+                                        <input type="text" name="receiver_name" class="form-control" value="<?= e($address['receiver_name']) ?>" required>
+                                    </div>
+                                    <div>
+                                        <label class="form-label" style="font-size: 13px;">Số điện thoại <span style="color:red">*</span></label>
+                                        <input type="tel" name="receiver_phone" class="form-control" value="<?= e($address['receiver_phone']) ?>" required>
+                                    </div>
+                                </div>
+
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 12px;">
+                                    <div>
+                                        <label class="form-label" style="font-size: 13px;">Tỉnh / Thành phố <span style="color:red">*</span></label>
+                                        <select name="province_name" id="select_province" class="form-control" required style="padding: 8px;">
+                                            <option value="">Chọn Tỉnh/Thành phố</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="form-label" style="font-size: 13px;">Quận / Huyện <span style="color:red">*</span></label>
+                                        <select name="district_name" id="select_district" class="form-control" required style="padding: 8px;">
+                                            <option value="">Chọn Quận/Huyện</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="form-label" style="font-size: 13px;">Phường / Xã <span style="color:red">*</span></label>
+                                        <select name="ward_name" id="select_ward" class="form-control" required style="padding: 8px;">
+                                            <option value="">Chọn Phường/Xã</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div style="margin-bottom: 12px;">
+                                    <label class="form-label" style="font-size: 13px;">Địa chỉ chi tiết (Số nhà, đường...) <span style="color:red">*</span></label>
+                                    <input type="text" name="address_line" class="form-control" value="<?= e($address['address_line']) ?>" required>
+                                </div>
+                                <div style="margin-bottom: 16px;">
+                                    <label class="form-label" style="font-size: 13px;">Ghi chú giao hàng</label>
+                                    <textarea name="address_note" class="form-control" rows="2" placeholder="Giao giờ hành chính, gọi trước khi giao..."><?= e($address['address_note']) ?></textarea>
+                                </div>
+                                
+                                <div style="display: flex; gap: 8px;">
+                                    <button type="submit" class="btn-primary" style="padding: 8px 16px; font-size: 13px; flex: 1;">Lưu thay đổi</button>
+                                    <button type="button" class="btn-secondary" style="padding: 8px 16px; font-size: 13px; flex: 1;" onclick="document.getElementById('edit-address-form').style.display='none'; document.getElementById('view-address-info').style.display='block';">Hủy</button>
+                                </div>
+                            </form>
                         <?php endif; ?>
+
                     </div>
                 </div>
             <?php endif; ?>
@@ -304,12 +429,13 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
                     <div><strong>Lưu ý quan trọng:</strong> Đơn hàng cần được <strong>thanh toán cọc hoặc toàn bộ</strong> để hệ thống tiến hành xác nhận và giao hàng cho bạn.</div>
                 </div>
             <?php endif; ?>
+            
             <?php if ($showPaymentQr): ?>
-                <p class="section-subtitle" style="margin-bottom: 20px;">Hệ thống đã tạo mã thanh toán tự động, vui lòng chuyển khoản đúng nội dung để đơn hàng được duyệt tự động.</p>
+                <p class="section-subtitle" style="margin-bottom: 20px;">Vui lòng chuyển khoản đúng số tiền và nội dung để đơn hàng được tự động duyệt.</p>
 
                 <div class="summary-box">
                     <div class="flex-between"><span>Phương thức:</span><strong class="word-break"><?= e($paymentPlanText) ?></strong></div>
-                    <div class="flex-between mt-16"><span>Cần thanh toán:</span><strong style="font-size: 18px; color: #ef4444;" class="word-break"><?= format_price($intent['requested_amount']) ?></strong></div>
+                    <div class="flex-between mt-16"><span>Cần thanh toán:</span><strong style="font-size: 18px; color: #ef4444;" class="word-break"><?= format_price($qrRequestedAmount) ?></strong></div>
                     <div class="flex-between mt-16"><span>Ngân hàng:</span><strong class="word-break"><?= e($bankName) ?></strong></div>
                     <div class="flex-between mt-16"><span>Số tk:</span><strong style="font-size: 16px; color: #2563eb;" class="word-break"><?= e($bankAccountNo) ?></strong></div>
                     <div class="flex-between mt-16"><span>Chủ tk:</span><strong class="word-break"><?= e($bankAccountName) ?></strong></div>
@@ -317,7 +443,7 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
                     <div class="mt-16 p-4" style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; text-align: center;">
                         <span style="color:#3b82f6; font-size: 13px; font-weight: 600;">NỘI DUNG CHUYỂN KHOẢN (BẮT BUỘC)</span>
                         <div class="word-break" style="font-weight:800; font-size:20px; color: #1e3a8a; margin-top:8px; letter-spacing: 1px;">
-                            <?= e($intent['transfer_note']) ?>
+                            <?= e($qrTransferNote) ?>
                         </div>
                     </div>
                 </div>
@@ -325,7 +451,16 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
                 <?php if ($qrImageUrl): ?>
                     <div class="address-card mt-24" style="text-align:center; background: #fff;">
                         <div style="font-weight:700; font-size:16px; margin-bottom:16px; color: #0f172a;">Quét mã QR để thanh toán</div>
+                        
                         <img src="<?= e($qrImageUrl) ?>" alt="Mã QR Thanh Toán" style="max-width:200px; width:100%; border:2px solid #e2e8f0; border-radius:12px; padding:12px; box-shadow:0 8px 24px rgba(15,23,42,.06); margin: 0 auto; display: block;">
+                        
+                        <div style="margin-top: 16px;">
+                            <button type="button" class="btn-secondary" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; padding: 8px 20px;" onclick="downloadQRCode('<?= e($qrImageUrl) ?>', 'Mã_QR_Thanh_Toan_<?= e($order['order_code']) ?>.png')">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                Tải mã QR
+                            </button>
+                        </div>
+
                         <div style="margin-top:16px; color:#64748b; font-size:13px; line-height: 1.5;">
                             Quét mã QR qua ứng dụng ngân hàng hoặc ví điện tử. Tự động xác nhận sau 1-3 phút.
                         </div>
@@ -335,10 +470,11 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
                 <?php
                     $paymentMessage = match ($currentPaymentStatus) {
                         'da_dat_coc' => ['#eff6ff', '#2563eb', 'Đơn hàng đã được ghi nhận tiền cọc. Phần còn lại sẽ thu khi giao hàng.'],
-                        'da_thanh_toan' => ['#ecfdf5', '#10b981', 'Đơn hàng đã được ghi nhận thanh toán 100%.'],
+                        'da_thanh_toan' => ['#ecfdf5', '#10b981', 'Đơn hàng đã được thanh toán đầy đủ.'],
                         'cho_hoan_tien' => ['#fff7ed', '#ea580c', 'Đơn đã hủy/trả hàng và shop đang xử lý hoàn tiền.'],
                         'da_hoan_tien' => ['#eef2ff', '#4f46e5', 'Shop đã hoàn tiền xong cho đơn hàng này.'],
-                        default => ['#f8fafc', '#64748b', 'Đơn hiện chưa có yêu cầu thanh toán trực tuyến đang chờ xử lý.'],
+                        'chua_thanh_toan' => ['#f8fafc', '#64748b', 'Bạn đã chọn hình thức thanh toán khi nhận hàng (COD) hoặc thanh toán thủ công.'],
+                        default => ['#f8fafc', '#64748b', 'Trạng thái thanh toán đang được cập nhật.'],
                     };
                 ?>
                 <div class="alert alert-success" style="display: flex; gap: 10px; padding: 16px; background: <?= e($paymentMessage[0]) ?>; border: 1px solid <?= e($paymentMessage[1]) ?>; color: <?= e($paymentMessage[1]) ?>; border-radius: 8px;">
@@ -350,7 +486,7 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
             <div class="mt-32">
                 <h3 class="section-title" style="font-size:16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 16px;">Lịch sử giao dịch</h3>
                 <?php if (!$payments): ?>
-                    <div style="text-align: center; color: #94a3b8; padding: 20px 0; font-size: 14px;">Chưa có giao dịch thanh toán nào.</div>
+                    <div style="text-align: center; color: #94a3b8; padding: 20px 0; font-size: 14px;">Chưa có giao dịch thanh toán nào được ghi nhận.</div>
                 <?php else: ?>
                     <div class="table-responsive">
                         <table class="data-table">
@@ -384,16 +520,114 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
                 <?php if ($currentPaymentStatus === 'chua_thanh_toan' && $currentOrderStatus === 'cho_xac_nhan'): ?>
                     <form method="post" style="width: 100%; margin: 0;" onsubmit="return confirm('Bạn có chắc chắn muốn hủy đơn hàng này không? Thao tác này không thể hoàn tác.');">
                         <input type="hidden" name="action" value="cancel_order">
+                        <?= function_exists('csrf_field') ? csrf_field() : '' ?>
+                        <?= function_exists('public_form_field') ? public_form_field() : '' ?>
                         <button type="submit" class="btn-primary" style="background: #ef4444; border-color: #ef4444; width: 100%;">Hủy đơn hàng</button>
                     </form>
                 <?php endif; ?>
-                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<?php if ($showPaymentQr): ?>
 <script>
+// Logic xử lý tải mã QR
+async function downloadQRCode(imageUrl, fileName) {
+    try {
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = blobUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(a);
+    } catch (e) {
+        window.open(imageUrl, '_blank');
+    }
+}
+
+// Logic chọn Tỉnh / Huyện / Xã động
+document.addEventListener('DOMContentLoaded', function() {
+    const provinceSel = document.getElementById('select_province');
+    const districtSel = document.getElementById('select_district');
+    const wardSel = document.getElementById('select_ward');
+    
+    if (provinceSel && districtSel && wardSel) {
+        let apiData = [];
+        let isFirstLoad = true;
+        
+        // Lấy thông tin hiện tại từ database để tự động chọn lại
+        const currentProv = <?= json_encode($address['province_name'] ?? '') ?>;
+        const currentDist = <?= json_encode($address['district_name'] ?? '') ?>;
+        const currentWard = <?= json_encode($address['ward_name'] ?? '') ?>;
+
+        // Fetch toàn bộ dữ liệu từ Open API
+        fetch('https://provinces.open-api.vn/api/?depth=3')
+            .then(res => res.json())
+            .then(data => {
+                apiData = data;
+                
+                // Đổ dữ liệu Tỉnh
+                data.forEach(p => {
+                    let opt = new Option(p.name, p.name);
+                    if (p.name === currentProv) opt.selected = true;
+                    provinceSel.add(opt);
+                });
+                
+                // Kích hoạt sự kiện change để tải danh sách Huyện
+                provinceSel.dispatchEvent(new Event('change'));
+            })
+            .catch(err => console.error("Lỗi tải API Hành Chính:", err));
+
+        // Khi đổi Tỉnh
+        provinceSel.addEventListener('change', function() {
+            districtSel.length = 1; // Reset Huyện
+            wardSel.length = 1;     // Reset Xã
+            
+            const selectedProvince = apiData.find(x => x.name === this.value);
+            if (selectedProvince && selectedProvince.districts) {
+                selectedProvince.districts.forEach(d => {
+                    let opt = new Option(d.name, d.name);
+                    districtSel.add(opt);
+                });
+                
+                if (isFirstLoad && currentDist) {
+                    districtSel.value = currentDist;
+                }
+            }
+            // Kích hoạt tiếp sự kiện change để tải Xã
+            districtSel.dispatchEvent(new Event('change'));
+        });
+
+        // Khi đổi Huyện
+        districtSel.addEventListener('change', function() {
+            wardSel.length = 1; // Reset Xã
+            
+            const selectedProvince = apiData.find(x => x.name === provinceSel.value);
+            if (selectedProvince) {
+                const selectedDistrict = selectedProvince.districts.find(x => x.name === this.value);
+                if (selectedDistrict && selectedDistrict.wards) {
+                    selectedDistrict.wards.forEach(w => {
+                        let opt = new Option(w.name, w.name);
+                        wardSel.add(opt);
+                    });
+                    
+                    if (isFirstLoad && currentWard) {
+                        wardSel.value = currentWard;
+                    }
+                }
+            }
+            // Tắt cờ FirstLoad sau khi chuỗi auto-select chạy xong
+            isFirstLoad = false;
+        });
+    }
+});
+
+<?php if ($showPaymentQr): ?>
 (() => {
     const statusUrl = <?= json_encode(
         route_url('/order_status.php?code=' . urlencode($order['order_code']) .
@@ -433,7 +667,7 @@ $paymentPlanText = payment_plan_label((string)$order['payment_plan']);
 
     setInterval(checkPaymentStatus, 5000);
 })();
-</script>
 <?php endif; ?>
+</script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

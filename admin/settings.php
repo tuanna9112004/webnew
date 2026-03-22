@@ -34,9 +34,8 @@ $fields = [
     'shop_logo' => [
         'label' => 'Logo / ảnh thương hiệu',
         'section' => 'general',
-        'type' => 'text',
-        'placeholder' => '/uploads/logo.png hoặc https://...',
-        'help' => 'Nhập đường dẫn ảnh hoặc URL logo.',
+        'type' => 'file',
+        'help' => 'Chọn ảnh để tải lên làm logo (Hệ thống sẽ tự động lưu thành img/logo.jpg).',
     ],
 
     'shop_phone' => [
@@ -131,9 +130,9 @@ $fields = [
     'sepay_webhook_api_key' => [
         'label' => 'Webhook API Key SePay',
         'section' => 'payment',
-        'type' => 'password',
+        'type' => 'text',
         'placeholder' => 'Nhập API key',
-        'help' => 'Nhập cùng API Key đã cấu hình trên SePay. Để trống nếu không muốn thay đổi.',
+        'help' => 'Nhập cùng API Key đã cấu hình trên SePay.',
     ],
     'sepay_expected_sub_account' => [
         'label' => 'SubAccount kỳ vọng khi callback',
@@ -153,9 +152,9 @@ $fields = [
     'telegram_bot_token' => [
         'label' => 'Bot Token Telegram',
         'section' => 'notifications',
-        'type' => 'password',
+        'type' => 'text',
         'placeholder' => 'Dán Bot Token mới từ @BotFather',
-        'help' => 'Mở bot trên Telegram và /start trước. Để trống nếu không muốn thay đổi token đã lưu.',
+        'help' => 'Mở bot trên Telegram và /start trước.',
     ],
     'telegram_chat_id' => [
         'label' => 'Chat ID Telegram nhận thông báo',
@@ -177,7 +176,7 @@ $fields = [
     ],
 
     'telegram_notify_enabled' => [
-        'label' => 'Bật thông báo Telegram cho đơn đã cọc / đã thanh toán',
+        'label' => 'Bật thông báo Telegram (Đơn cọc/Thanh toán)',
         'section' => 'features',
         'type' => 'checkbox',
     ],
@@ -203,9 +202,18 @@ foreach ($fields as $key => $meta) {
 }
 
 /**
+ * Lấy giá trị hiện tại từ DB
+ */
+$values = [];
+foreach ($fields as $key => $meta) {
+    $default = ($meta['type'] ?? 'text') === 'checkbox' ? '0' : '';
+    $values[$key] = (string) app_setting($key, $default);
+}
+
+/**
  * Chuẩn hóa dữ liệu đầu vào
  */
-function normalize_setting_input(string $key, array $meta)
+function normalize_setting_input(string $key, array $meta, array $currentValues)
 {
     $type = $meta['type'] ?? 'text';
 
@@ -215,7 +223,28 @@ function normalize_setting_input(string $key, array $meta)
 
     if ($type === 'password') {
         $value = trim((string)($_POST[$key] ?? ''));
-        return $value === '' ? (string) app_setting($key, '') : $value;
+        return $value === '' ? (string) ($currentValues[$key] ?? '') : $value;
+    }
+
+    if ($type === 'file') {
+        if (isset($_FILES[$key]) && $_FILES[$key]['error'] === UPLOAD_ERR_OK) {
+            if ($key === 'shop_logo') {
+                $uploadDir = __DIR__ . '/../img/';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0755, true);
+                }
+                
+                $targetFile = $uploadDir . 'logo.jpg';
+                $check = @getimagesize($_FILES[$key]['tmp_name']);
+                
+                if ($check !== false) {
+                    if (move_uploaded_file($_FILES[$key]['tmp_name'], $targetFile)) {
+                        return 'img/logo.jpg';
+                    }
+                }
+            }
+        }
+        return (string)($currentValues[$key] ?? '');
     }
 
     $value = trim((string)($_POST[$key] ?? ''));
@@ -270,8 +299,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
 
         foreach ($fields as $key => $meta) {
-            $value = normalize_setting_input($key, $meta);
+            $value = normalize_setting_input($key, $meta, $values);
             $stmt->execute([$key, $value]);
+            
+            $values[$key] = $value;
         }
 
         db()->commit();
@@ -284,16 +315,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-/**
- * Lấy giá trị hiện tại
- */
-$values = [];
-foreach ($fields as $key => $meta) {
-    $default = ($meta['type'] ?? 'text') === 'checkbox' ? '0' : '';
-    $values[$key] = (string) app_setting($key, $default);
-}
-$hasSepayWebhookApiKey = trim((string)($values['sepay_webhook_api_key'] ?? '')) !== '';
-$hasTelegramBotToken = trim((string)($values['telegram_bot_token'] ?? '')) !== '';
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -303,223 +324,350 @@ $hasTelegramBotToken = trim((string)($values['telegram_bot_token'] ?? '')) !== '
     <title>Thiết lập website</title>
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/style.css">
     <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --focus-ring: rgba(79, 70, 229, 0.2);
+            --success-bg: #f0fdf4;
+            --success-text: #166534;
+            --success-border: #bbf7d0;
+            --error-bg: #fef2f2;
+            --error-text: #991b1b;
+            --error-border: #fecaca;
+        }
+
         * { box-sizing: border-box; }
+        
         body {
-            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background: #f6f7fb;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg-body);
             margin: 0;
-            color: #111827;
+            color: var(--text-main);
+            line-height: 1.5;
         }
+
         .wrap {
-            max-width: 1180px;
-            margin: 32px auto;
-            padding: 0 16px 40px;
+            max-width: 1024px;
+            margin: 40px auto;
+            padding: 0 20px 60px;
         }
-        .top {
+
+        .header-section {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
+            align-items: center;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
             gap: 16px;
-            flex-wrap: wrap;
-            margin-bottom: 22px;
         }
+
         .title {
-            margin: 0 0 8px;
-            font-size: 30px;
-            line-height: 1.2;
+            margin: 0 0 4px;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.025em;
         }
+
         .sub {
-            color: #6b7280;
-            font-size: 14px;
-            max-width: 760px;
+            color: var(--text-muted);
+            font-size: 15px;
         }
-        .actions {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
+
         .btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            border-radius: 14px;
-            padding: 12px 18px;
+            border-radius: 8px;
+            padding: 10px 20px;
             text-decoration: none;
-            font-weight: 800;
-            border: 1px solid #111827;
-            background: #111827;
-            color: #fff;
+            font-weight: 600;
+            font-size: 14px;
+            border: 1px solid transparent;
             cursor: pointer;
-            transition: .18s ease;
+            transition: all 0.2s ease;
         }
-        .btn:hover {
+
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.1), 0 2px 4px -1px rgba(79, 70, 229, 0.06);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
             transform: translateY(-1px);
-            opacity: .96;
+            box-shadow: 0 6px 8px -1px rgba(79, 70, 229, 0.15), 0 4px 6px -1px rgba(79, 70, 229, 0.1);
         }
+
         .btn-secondary {
             background: #fff;
-            color: #111827;
-            border-color: #d1d5db;
+            color: var(--text-main);
+            border-color: var(--border-color);
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+
+        .btn-secondary:hover {
+            background: #f1f5f9;
         }
 
         .alert {
-            margin-bottom: 18px;
-            padding: 14px 16px;
-            border-radius: 14px;
+            margin-bottom: 24px;
+            padding: 16px;
+            border-radius: 8px;
             font-size: 14px;
+            font-weight: 500;
             border: 1px solid;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
+
         .alert-success {
-            background: #ecfdf5;
-            color: #065f46;
-            border-color: #a7f3d0;
+            background: var(--success-bg);
+            color: var(--success-text);
+            border-color: var(--success-border);
         }
+
         .alert-error {
-            background: #fef2f2;
-            color: #991b1b;
-            border-color: #fecaca;
+            background: var(--error-bg);
+            color: var(--error-text);
+            border-color: var(--error-border);
         }
 
         .section-card {
-            background: #fff;
-            border: 1px solid #e5e7eb;
-            border-radius: 24px;
-            padding: 22px;
-            box-shadow: 0 16px 40px rgba(15, 23, 42, .05);
-            margin-bottom: 18px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 28px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+            margin-bottom: 24px;
         }
+
         .section-title {
-            margin: 0 0 16px;
-            font-size: 20px;
-            font-weight: 800;
+            margin: 0 0 24px;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-main);
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
         }
 
         .grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 16px;
+            gap: 20px 24px;
         }
+
         .group {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 6px;
         }
+
         .group-full {
             grid-column: 1 / -1;
         }
+
         .group label {
-            font-weight: 700;
+            font-weight: 500;
             font-size: 14px;
+            color: #334155;
         }
-        .group input,
+
+        .group input[type="text"],
+        .group input[type="email"],
+        .group input[type="url"],
+        .group input[type="number"],
+        .group input[type="password"],
         .group textarea {
             width: 100%;
-            border: 1px solid #d1d5db;
-            border-radius: 14px;
-            padding: 12px 14px;
-            font: inherit;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 14px;
+            font-family: inherit;
             background: #fff;
-            color: #111827;
-            transition: border-color .18s ease, box-shadow .18s ease;
+            color: var(--text-main);
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
         }
+
         .group input:focus,
         .group textarea:focus {
             outline: none;
-            border-color: #111827;
-            box-shadow: 0 0 0 3px rgba(17, 24, 39, .08);
-        }
-        .group textarea {
-            min-height: 110px;
-            resize: vertical;
-        }
-        .help {
-            color: #6b7280;
-            font-size: 12px;
-            line-height: 1.5;
-        }
-        .secret-status {
-            margin-top: 4px;
-            color: #065f46;
-            font-size: 12px;
-            font-weight: 700;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px var(--focus-ring);
         }
 
-        .checkbox-grid {
+        .group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .group input[type="file"] {
+            font-size: 14px;
+            color: var(--text-muted);
+            file-selector-button: font-weight 500;
+        }
+        
+        .group input[type="file"]::file-selector-button {
+            margin-right: 12px;
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: #f8fafc;
+            color: var(--text-main);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .group input[type="file"]::file-selector-button:hover {
+            background: #f1f5f9;
+        }
+
+        .help {
+            color: var(--text-muted);
+            font-size: 13px;
+            margin-top: 2px;
+        }
+
+        /* Toggle Switch UI */
+        .features-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 14px;
+            gap: 16px;
         }
-        .checkbox {
+
+        .toggle-wrapper {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 14px 16px;
-            border: 1px solid #e5e7eb;
-            border-radius: 16px;
-            background: #fafafa;
+            justify-content: space-between;
+            padding: 16px;
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
             cursor: pointer;
-            font-weight: 600;
+            transition: all 0.2s ease;
         }
-        .checkbox input {
-            width: 18px;
-            height: 18px;
-            accent-color: #111827;
+
+        .toggle-wrapper:hover {
+            border-color: #cbd5e1;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        .toggle-label-text {
+            font-weight: 500;
+            font-size: 14px;
+            color: var(--text-main);
+            user-select: none;
+        }
+
+        .toggle-input {
+            display: none;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            background-color: #cbd5e1;
+            border-radius: 999px;
+            transition: background-color 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background-color: white;
+            border-radius: 50%;
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .toggle-input:checked + .toggle-switch {
+            background-color: var(--primary);
+        }
+
+        .toggle-input:checked + .toggle-switch::after {
+            transform: translateX(20px);
         }
 
         .sticky-actions {
             position: sticky;
-            bottom: 12px;
+            bottom: 24px;
             z-index: 30;
             display: flex;
             justify-content: flex-end;
-            margin-top: 18px;
-        }
-        .sticky-box {
-            background: rgba(255,255,255,.9);
-            backdrop-filter: blur(10px);
-            border: 1px solid #e5e7eb;
-            border-radius: 18px;
-            padding: 12px;
-            box-shadow: 0 12px 30px rgba(15,23,42,.08);
+            margin-top: 32px;
         }
 
-        @media (max-width: 860px) {
-            .grid,
-            .checkbox-grid {
+        .sticky-box {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px 24px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+
+        @media (max-width: 768px) {
+            .grid, .features-grid {
                 grid-template-columns: 1fr;
             }
-            .title {
-                font-size: 26px;
+            .header-section {
+                flex-direction: column;
+                align-items: flex-start;
             }
+            .wrap { padding: 0 16px 80px; }
+            .section-card { padding: 20px; }
         }
     </style>
 </head>
 <body>
 <div class="wrap">
-    <div class="top">
+    <div class="header-section">
         <div>
-            <h1 class="title">Thiết lập website</h1>
+            <h1 class="title">Thiết lập Website</h1>
             <div class="sub">
-                Quản lý thông tin shop, liên hệ, mạng xã hội, SePay và các tính năng hệ thống.
-                Các dữ liệu này sẽ thay thế phần config hard-code trên giao diện.
+                Quản lý thông tin chung, liên hệ, thanh toán SePay và các tính năng hệ thống.
             </div>
         </div>
 
         <div class="actions">
-            <a class="btn btn-secondary" href="<?= route_url('/admin/products.php') ?>">Quay lại quản lý sản phẩm</a>
+            <a class="btn btn-secondary" href="<?= route_url('/admin/products.php') ?>">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Trở về
+            </a>
         </div>
     </div>
 
     <?php if ($message): ?>
-        <div class="alert alert-success"><?= e($message) ?></div>
+        <div class="alert alert-success">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <?= e($message) ?>
+        </div>
     <?php endif; ?>
 
     <?php if ($error): ?>
-        <div class="alert alert-error"><?= e($error) ?></div>
+        <div class="alert alert-error">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <?= e($error) ?>
+        </div>
     <?php endif; ?>
 
-    <form method="post" autocomplete="off">
+    <form method="post" autocomplete="off" enctype="multipart/form-data">
         <?= csrf_field() ?>
 
         <?php foreach ($groupedFields as $sectionKey => $sectionFields): ?>
@@ -537,16 +685,18 @@ $hasTelegramBotToken = trim((string)($values['telegram_bot_token'] ?? '')) !== '
                 ?>
 
                 <?php if ($isFeatureSection): ?>
-                    <div class="checkbox-grid">
+                    <div class="features-grid">
                         <?php foreach ($sectionFields as $key => $meta): ?>
-                            <label class="checkbox">
+                            <label class="toggle-wrapper">
+                                <span class="toggle-label-text"><?= e($meta['label']) ?></span>
                                 <input
+                                    class="toggle-input"
                                     type="checkbox"
                                     name="<?= e($key) ?>"
                                     value="1"
                                     <?= $values[$key] === '1' ? 'checked' : '' ?>
                                 >
-                                <span><?= e($meta['label']) ?></span>
+                                <div class="toggle-switch"></div>
                             </label>
                         <?php endforeach; ?>
                     </div>
@@ -555,8 +705,8 @@ $hasTelegramBotToken = trim((string)($values['telegram_bot_token'] ?? '')) !== '
                         <?php foreach ($sectionFields as $key => $meta): ?>
                             <?php
                             $type = $meta['type'] ?? 'text';
-                            $inputType = in_array($type, ['text', 'email', 'url', 'number', 'password'], true) ? $type : 'text';
-                            $isFull = $type === 'textarea';
+                            $inputType = in_array($type, ['text', 'email', 'url', 'number', 'password', 'file'], true) ? $type : 'text';
+                            $isFull = in_array($type, ['textarea', 'file'], true);
                             ?>
                             <div class="group <?= $isFull ? 'group-full' : '' ?>">
                                 <label for="<?= e($key) ?>"><?= e($meta['label']) ?></label>
@@ -567,6 +717,20 @@ $hasTelegramBotToken = trim((string)($values['telegram_bot_token'] ?? '')) !== '
                                         name="<?= e($key) ?>"
                                         placeholder="<?= e($meta['placeholder'] ?? '') ?>"
                                     ><?= e($values[$key]) ?></textarea>
+                                
+                                <?php elseif ($type === 'file'): ?>
+                                    <?php if (!empty($values[$key])): ?>
+                                        <div style="margin-bottom: 12px;">
+                                            <img src="<?= BASE_URL . '/' . e($values[$key]) ?>?v=<?= time() ?>" alt="Ảnh hiện tại" style="max-height: 80px; border-radius: 8px; border: 1px solid var(--border-color); box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                        </div>
+                                    <?php endif; ?>
+                                    <input
+                                        id="<?= e($key) ?>"
+                                        type="file"
+                                        name="<?= e($key) ?>"
+                                        accept="image/*"
+                                    >
+                                    
                                 <?php else: ?>
                                     <?php $fieldValue = $inputType === 'password' ? '' : $values[$key]; ?>
                                     <input
@@ -583,12 +747,6 @@ $hasTelegramBotToken = trim((string)($values['telegram_bot_token'] ?? '')) !== '
                                 <?php if (!empty($meta['help'])): ?>
                                     <div class="help"><?= e($meta['help']) ?></div>
                                 <?php endif; ?>
-                                <?php if ($key === 'sepay_webhook_api_key' && $hasSepayWebhookApiKey): ?>
-                                    <div class="secret-status">Đã lưu API Key SePay. Để trống nếu không muốn thay đổi.</div>
-                                <?php endif; ?>
-                                <?php if ($key === 'telegram_bot_token' && $hasTelegramBotToken): ?>
-                                    <div class="secret-status">Đã lưu Bot Token Telegram. Để trống nếu không muốn thay đổi.</div>
-                                <?php endif; ?>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -598,7 +756,10 @@ $hasTelegramBotToken = trim((string)($values['telegram_bot_token'] ?? '')) !== '
 
         <div class="sticky-actions">
             <div class="sticky-box">
-                <button class="btn" type="submit">Lưu thiết lập</button>
+                <button class="btn btn-primary" type="submit">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                    Lưu thiết lập
+                </button>
             </div>
         </div>
     </form>

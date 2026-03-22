@@ -53,25 +53,25 @@ if (!$missing && !empty($orders)) {
             $os = $order['order_status'] ?? '';
             $ps = $order['payment_status'] ?? '';
 
-            // 1. TOP Ưu tiên: Tiền đã vào (Thanh toán/Cọc) nhưng chưa xử lý (Chờ xác nhận)
+            // 1. Ưu tiên 1 (Đỏ): Tiền đã vào (Thanh toán/Cọc) nhưng CHỜ XÁC NHẬN
             if (in_array($ps, ['da_thanh_toan', 'da_dat_coc']) && $os === 'cho_xac_nhan') return 1;
             
-            // 2. Tiền đã vào (Thanh toán/Cọc) đang đóng gói (Đang chuẩn bị)
+            // 2. Ưu tiên 2 (Đỏ): Tiền đã vào (Thanh toán/Cọc) nhưng ĐANG CHUẨN BỊ
             if (in_array($ps, ['da_thanh_toan', 'da_dat_coc']) && $os === 'dang_chuan_bi') return 2;
             
-            // 3. Các vấn đề rủi ro cao: Khách hủy/trả hàng yêu cầu hoàn tiền (Cần xử lý để tránh khiếu nại)
-            if ($ps === 'chua_hoan_tien') return 3;
+            // 3. Xanh Dương: Đang trên đường giao (Đang Ship)
+            if ($os === 'dang_giao') return 3;
             
-            // 4. Đơn đang trên đường giao (Đang theo dõi)
-            if ($os === 'dang_giao') return 4;
+            // 4. Tím: Khách hủy/trả hàng yêu cầu hoàn tiền (Chưa hoàn tiền)
+            if ($ps === 'chua_hoan_tien') return 4;
             
-            // 5. Đơn COD (Chưa thanh toán) - Mới đặt (Chờ xác nhận) -> Kém ưu tiên hơn đơn đã trả tiền
+            // 5. Vàng/Cam: Đơn COD (Chưa thanh toán) - Mới đặt (Chờ xác nhận)
             if ($ps === 'chua_thanh_toan' && $os === 'cho_xac_nhan') return 5;
             
-            // 6. Đơn COD (Chưa thanh toán) - Đang đóng gói
+            // 6. Xám: Đơn COD (Chưa thanh toán) - Đang đóng gói
             if ($ps === 'chua_thanh_toan' && $os === 'dang_chuan_bi') return 6;
 
-            // 10. Chót bảng: Các đơn đã hoàn thành chu kỳ sống (Đã giao xong, Hủy xong, Đã hoàn tiền)
+            // 10. Chót bảng (Xanh lá): Các đơn đã hoàn thành chu kỳ sống (Đã giao xong, Hủy xong, Trả hàng, Đã hoàn tiền)
             if (in_array($os, ['da_giao', 'da_huy', 'tra_hang']) || $ps === 'da_hoan_tien') return 10;
             
             // Các trường hợp ngoại lệ khác
@@ -156,8 +156,8 @@ $paymentMap = payment_status_options();
         .btn-primary-action:hover { background-color: var(--admin-success-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); }
 
         .color-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; background: #f9fafb; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--admin-border); }
-        .legend-item { display: flex; align-items: center; font-size: 13px; color: var(--admin-text-main); font-weight: 500; }
-        .legend-dot { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; }
+        .legend-item { display: flex; align-items: center; font-size: 13px; color: var(--admin-text-main); font-weight: 600; }
+        .legend-dot { display: inline-block; width: 14px; height: 14px; border-radius: 4px; margin-right: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
 
         .admin-filters { background: #f9fafb; border: 1px solid var(--admin-border); border-radius: 10px; padding: 20px; margin-bottom: 24px; }
         .filter-form { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
@@ -174,40 +174,56 @@ $paymentMap = payment_status_options();
 
         /* BẢNG DỮ LIỆU ĐƠN HÀNG */
         .table-responsive { width: 100%; overflow-x: auto; border-radius: 10px; border: 1px solid var(--admin-border); background: #fff; }
-        .admin-table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; min-width: 1000px; }
+        .admin-table { width: 100%; border-collapse: collapse; text-align: left; min-width: 1100px; }
         .admin-table th { background-color: #f9fafb; color: var(--admin-text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; padding: 16px 14px; border-bottom: 1px solid var(--admin-border); white-space: nowrap; }
-        .admin-table td { padding: 16px 14px; vertical-align: middle; border-bottom: 1px solid var(--admin-border); font-size: 14px; transition: background-color 0.2s; }
+        
+        /* Chỉnh lại td cho phép background phủ full */
+        .admin-table td { padding: 16px 14px; vertical-align: middle; border-bottom: 1px solid var(--admin-border); font-size: 14px; background-color: inherit; }
         .admin-table tr:last-child td { border-bottom: none; }
 
-        /* SMART ROWS */
-        .admin-table tr { transition: opacity 0.3s, filter 0.3s; }
-        .row-completed { opacity: 0.55; background-color: #f9fafb; filter: grayscale(30%); }
-        .row-completed:hover { opacity: 1; filter: grayscale(0%); background-color: #fff; }
+        /* SMART ROWS - BÔI MÀU FULL HÀNG THEO YÊU CẦU MỚI */
+        .admin-table tr { transition: all 0.2s ease; }
         
-        .row-urgent-paid td:first-child { border-left: 4px solid var(--admin-success); }
-        .row-urgent-paid { background-color: var(--admin-success-bg); } 
+        /* 1. Xanh Lá: Hoàn tất / Đã hủy / Trả hàng / Hoàn tiền */
+        .row-completed { background-color: #d1fae5 !important; opacity: 0.85; }
+        .row-completed td:first-child { border-left: 5px solid #059669; }
+        .row-completed:hover { opacity: 1; background-color: #a7f3d0 !important; }
         
-        .row-money-issue td:first-child { border-left: 4px solid #8b5cf6; }
-        .row-money-issue { background-color: #f5f3ff; } 
+        /* 2. Đỏ: Ưu tiên 1 & 2 - Đã TT/Cọc chờ XL hoặc đang đóng gói */
+        .row-urgent-paid { background-color: #fee2e2 !important; } 
+        .row-urgent-paid td:first-child { border-left: 5px solid #dc2626; }
+        
+        /* 3. Tím: Hoàn trả nhưng chưa hoàn tiền */
+        .row-money-issue { background-color: #ede9fe !important; } 
+        .row-money-issue td:first-child { border-left: 5px solid #7c3aed; }
+        
+        /* 4. Xanh Dương: Đang giao */
+        .row-shipping { background-color: #e0f2fe !important; }
+        .row-shipping td:first-child { border-left: 5px solid #0284c7; }
+        
+        /* 5. Vàng/Cam: Đơn COD chưa TT chờ xử lý */
+        .row-action-needed { background-color: #fef3c7 !important; } 
+        .row-action-needed td:first-child { border-left: 5px solid #d97706; }
+        
+        /* 6. Xám: Các trạng thái chưa thanh toán khác */
+        .row-unpaid { background-color: #f3f4f6 !important; }
+        .row-unpaid td:first-child { border-left: 5px solid #9ca3af; }
 
-        .row-shipping td:first-child { border-left: 4px solid var(--admin-info); }
-        .row-action-needed td:first-child { border-left: 4px solid var(--admin-warning); } 
-        .row-unpaid td:first-child { border-left: 4px solid var(--admin-danger); }
-
-        .status-badge { display: inline-flex; padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 20px; white-space: nowrap; align-items: center; gap: 4px; }
+        .status-badge { display: inline-flex; padding: 6px 12px; font-size: 12px; font-weight: 700; border-radius: 20px; white-space: nowrap; align-items: center; gap: 4px; border: 1px solid transparent; }
         .status-badge::before { content: ''; display: block; width: 6px; height: 6px; border-radius: 50%; }
-        .badge-warning { background: var(--admin-warning-bg); color: var(--admin-warning); } .badge-warning::before { background-color: var(--admin-warning); }
-        .badge-success { background: var(--admin-success-bg); color: var(--admin-success); } .badge-success::before { background-color: var(--admin-success); }
-        .badge-danger { background: var(--admin-danger-bg); color: var(--admin-danger); } .badge-danger::before { background-color: var(--admin-danger); }
-        .badge-primary { background: #eef2ff; color: var(--admin-primary); } .badge-primary::before { background-color: var(--admin-primary); }
-        .badge-info { background: var(--admin-info-bg); color: var(--admin-info); } .badge-info::before { background-color: var(--admin-info); }
+        
+        .badge-warning { background: #fff; color: var(--admin-warning); border-color: #fde68a; } .badge-warning::before { background-color: var(--admin-warning); }
+        .badge-success { background: #fff; color: var(--admin-success); border-color: #a7f3d0; } .badge-success::before { background-color: var(--admin-success); }
+        .badge-danger { background: #fff; color: var(--admin-danger); border-color: #fecaca; } .badge-danger::before { background-color: var(--admin-danger); }
+        .badge-primary { background: #fff; color: var(--admin-primary); border-color: #c7d2fe; } .badge-primary::before { background-color: var(--admin-primary); }
+        .badge-info { background: #fff; color: var(--admin-info); border-color: #bae6fd; } .badge-info::before { background-color: var(--admin-info); }
 
-        .channel-pill { display: inline-block; padding: 4px 8px; border-radius: 6px; background: #f3f4f6; color: #4b5563; font-size: 12px; font-weight: 600; text-transform: capitalize; }
-        .btn-view { display: inline-flex; padding: 8px 16px; font-size: 13px; border-radius: 6px; background-color: #fff; color: var(--admin-primary); border: 1px solid var(--admin-primary); font-weight: 600; }
-        .btn-view:hover { background-color: #eef2ff; }
-        .muted-text { color: var(--admin-text-muted); font-size: 13px; }
+        .channel-pill { display: inline-block; padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,0.6); color: #374151; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid rgba(0,0,0,0.05); }
+        .btn-view { display: inline-flex; padding: 8px 16px; font-size: 13px; border-radius: 6px; background-color: #fff; color: var(--admin-text-main); border: 1px solid var(--admin-border); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .btn-view:hover { background-color: var(--admin-primary); color: #fff; border-color: var(--admin-primary); }
+        .muted-text { color: #4b5563; font-size: 13px; }
         .fw-600 { font-weight: 600; color: var(--admin-text-main); display: block; margin-bottom: 2px;}
-        .date-text { font-family: monospace; font-size: 13px; color: var(--admin-text-muted); }
+        .date-text { font-family: monospace; font-size: 13px; color: #4b5563; }
 
         .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.7); z-index: 10000; align-items: center; justify-content: center; }
         .loading-overlay.active { display: flex; }
@@ -279,20 +295,28 @@ $paymentMap = payment_status_options();
                     <p>Theo dõi và xử lý các đơn đặt hàng từ khách hàng.</p>
                     
                     <div class="color-legend">
-                        <div class="legend-item"><span class="legend-dot" style="background:var(--admin-success);"></span> Khách đã chuyển tiền (Cần duyệt ngay)</div>
-                        <div class="legend-item"><span class="legend-dot" style="background:var(--admin-warning);"></span> Đơn COD (Chờ xác nhận)</div>
-                        <div class="legend-item"><span class="legend-dot" style="background:#8b5cf6;"></span> Cần hoàn tiền gấp</div>
-                        <div class="legend-item"><span class="legend-dot" style="background:var(--admin-info);"></span> Đang Ship</div>
-                        <div class="legend-item" style="opacity:0.6;"><span class="legend-dot" style="background:#9ca3af;"></span> Hoàn tất / Đã hủy</div>
+                        <div class="legend-item"><span class="legend-dot" style="background:#fee2e2; border: 1px solid #dc2626;"></span> Cần xử lý gấp (Ưu tiên)</div>
+                        <div class="legend-item"><span class="legend-dot" style="background:#e0f2fe; border: 1px solid #0284c7;"></span> Đang Ship</div>
+                        <div class="legend-item"><span class="legend-dot" style="background:#ede9fe; border: 1px solid #7c3aed;"></span> Chưa hoàn tiền</div>
+                        <div class="legend-item"><span class="legend-dot" style="background:#fef3c7; border: 1px solid #d97706;"></span> COD chờ xác nhận</div>
+                        <div class="legend-item"><span class="legend-dot" style="background:#d1fae5; border: 1px solid #059669;"></span> Hoàn tất / Đã hủy</div>
                     </div>
                 </div>
                 
-                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                    <a href="<?= route_url('/admin/order_create.php') ?>" class="btn-primary-action">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                        Tạo đơn thủ công
-                    </a>
-                </div>
+               <div style="display:flex; gap:10px; flex-wrap:wrap;">
+    <a href="<?= route_url('/admin/statistics.php') ?>" class="btn-primary-action" style="background-color: var(--admin-info); box-shadow: 0 4px 12px rgba(14, 165, 233, 0.2);">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+        </svg>
+        Xem thống kê
+    </a>
+    <a href="<?= route_url('/admin/order_create.php') ?>" class="btn-primary-action">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        Tạo đơn thủ công
+    </a>
+</div>
             </div>
 
             <?php if ($missing): ?>
@@ -341,7 +365,7 @@ $paymentMap = payment_status_options();
                                 <th>Mã đơn</th>
                                 <th>Khách hàng</th>
                                 <th>Nguồn</th>
-                                <th>Tổng tiền</th>
+                                <th>Tổng tiền / Tiền lãi</th>
                                 <th>Thanh toán</th>
                                 <th>Trạng thái</th>
                                 <th>Ngày tạo</th>
@@ -364,27 +388,70 @@ $paymentMap = payment_status_options();
 
                                     $rowClass = '';
                                     if (in_array($order['order_status'], ['da_giao', 'da_huy', 'tra_hang']) || $order['payment_status'] === 'da_hoan_tien') {
-                                        $rowClass = 'row-completed'; 
+                                        $rowClass = 'row-completed'; // Xanh lá
                                     } elseif ($order['payment_status'] === 'chua_hoan_tien') {
-                                        $rowClass = 'row-money-issue'; 
+                                        $rowClass = 'row-money-issue'; // Tím
                                     } elseif (in_array($order['payment_status'], ['da_thanh_toan', 'da_dat_coc']) && in_array($order['order_status'], ['cho_xac_nhan', 'dang_chuan_bi'])) {
-                                        $rowClass = 'row-urgent-paid'; 
-                                    } elseif ($order['order_status'] === 'cho_xac_nhan') {
-                                        $rowClass = 'row-action-needed'; 
+                                        $rowClass = 'row-urgent-paid'; // Đỏ (Ưu tiên 1 & 2)
                                     } elseif ($order['order_status'] === 'dang_giao') {
-                                        $rowClass = 'row-shipping'; 
+                                        $rowClass = 'row-shipping'; // Xanh dương
+                                    } elseif ($order['order_status'] === 'cho_xac_nhan') {
+                                        $rowClass = 'row-action-needed'; // Vàng
                                     } elseif ($order['payment_status'] === 'chua_thanh_toan') {
-                                        $rowClass = 'row-unpaid'; 
+                                        $rowClass = 'row-unpaid'; // Xám
+                                    }
+                                    
+                                    // TÍNH TOÁN TIỀN LÃI KHÔNG CẦN TRUY VẤN VÀO BẢNG ORDER_ITEMS (Tránh lỗi SQL)
+                                    // Lãi = Tổng tiền (total_amount) - Tổng vốn (purchase_price) - Phí ship
+                                    $profit = null;
+                                    $totalAmount = (float)($order['total_amount'] ?? 0);
+                                    $shippingFee = (float)($order['shipping_fee'] ?? 0);
+                                    
+                                    $orderItems = db()->prepare("
+                                        SELECT oi.quantity, p.purchase_price 
+                                        FROM order_items oi
+                                        LEFT JOIN products p ON oi.product_id = p.id
+                                        WHERE oi.order_id = ?
+                                    ");
+                                    $orderItems->execute([$order['id']]);
+                                    $items = $orderItems->fetchAll();
+                                    
+                                    if (!empty($items)) {
+                                        $totalPurchasePrice = 0;
+                                        foreach ($items as $item) {
+                                            $itemPurchasePrice = (float)($item['purchase_price'] ?? 0);
+                                            $qty = (int)($item['quantity'] ?? 1);
+                                            $totalPurchasePrice += $itemPurchasePrice * $qty;
+                                        }
+                                        $profit = $totalAmount - $totalPurchasePrice - $shippingFee;
                                     }
                                 ?>
                                 <tr class="<?= $rowClass ?>">
-                                    <td><span style="font-family: monospace; font-weight: 700; color: var(--admin-primary); font-size: 15px;">#<?= e($order['order_code']) ?></span></td>
+                                    <td><span style="font-family: monospace; font-weight: 800; color: #111827; font-size: 15px;">#<?= e($order['order_code']) ?></span></td>
                                     <td>
                                         <span class="fw-600"><?= e($order['customer_name'] ?: $order['contact_name']) ?></span>
                                         <span class="muted-text">SĐT: <?= e($order['contact_phone']) ?></span>
                                     </td>
                                     <td><span class="channel-pill"><?= e($order['purchase_channel']) ?></span></td>
-                                    <td><strong style="color: var(--admin-danger);"><?= format_price($order['total_amount']) ?></strong></td>
+                                    
+                                    <td>
+                                        <div style="font-weight: 800; color: #111827; font-size: 15px;">
+                                            <?= format_price($totalAmount) ?>
+                                        </div>
+                                        <?php if ($profit !== null): ?>
+                                            <?php 
+                                                $profitColor = $profit >= 0 ? '#059669' : '#dc2626'; // Xanh lá nếu lãi, đỏ nếu lỗ
+                                                $profitSign = $profit >= 0 ? '+' : '';
+                                            ?>
+                                            <div style="font-size: 13px; font-weight: 700; color: <?= $profitColor ?>; margin-top: 4px; display: flex; align-items: center; gap: 4px;">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"></path><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                                                Lãi: <?= $profitSign . format_price($profit) ?>
+                                            </div>
+                                        <?php else: ?>
+                                            <div style="font-size: 12px; color: #6b7280; font-style: italic; margin-top: 4px;">(Chưa tính được lãi)</div>
+                                        <?php endif; ?>
+                                    </td>
+                                    
                                     <td><span class="status-badge badge-<?= $pStatus[1] ?>"><?= e($pStatus[0]) ?></span></td>
                                     <td><span class="status-badge badge-<?= $oStatus[1] ?>"><?= e($oStatus[0]) ?></span></td>
                                     <td><span class="date-text"><?= e(date('H:i d/m/Y', strtotime($order['placed_at']))) ?></span></td>
@@ -419,5 +486,3 @@ function showLoading() {
     document.getElementById('loadingOverlay').classList.add('active');
 }
 </script>
-
-<?php require_once __DIR__ . '/../includes/footer.php'; ?>
